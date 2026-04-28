@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ProjectGuid>{49DFB54F-7468-47F9-B9CA-F14E86545AC9}</ProjectGuid>
+    <IsServiceFabricServiceProject>true</IsServiceFabricServiceProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ServiceFabric.Services" />
+    <PackageReference Include="Microsoft.ServiceFabric.Services.Remoting" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TravelPlanner.Common\TravelPlanner.Common.csproj" />
+    <ProjectReference Include="..\TravelPlanner.Contracts\TravelPlanner.Contracts.csproj" />
+  </ItemGroup>
+</Project>
+

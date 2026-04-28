@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ServiceFabric.Services.Remoting" />
+  </ItemGroup>
+</Project>
+
