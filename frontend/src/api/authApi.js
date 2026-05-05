@@ -5,6 +5,7 @@ export const authApi = {
     return apiRequest("/api/users", {
       method: "POST",
       body: request,
+      skipAuth: true,
     });
   },
 
@@ -12,6 +13,7 @@ export const authApi = {
     return apiRequest("/api/sessions", {
       method: "POST",
       body: request,
+      skipAuth: true,
     });
   },
 

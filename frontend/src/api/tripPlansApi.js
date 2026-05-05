@@ -1,10 +1,31 @@
-const notImplemented = () => Promise.reject(new Error("Trip plan API calls are not implemented yet."));
+import { apiRequest } from "./httpClient.js";
 
 export const tripPlansApi = {
-  getAll: notImplemented,
-  getById: notImplemented,
-  create: notImplemented,
-  update: notImplemented,
-  remove: notImplemented,
-};
+  getAll() {
+    return apiRequest("/api/trip-plans");
+  },
 
+  getById(tripPlanId) {
+    return apiRequest(`/api/trip-plans/${tripPlanId}`);
+  },
+
+  create(request) {
+    return apiRequest("/api/trip-plans", {
+      method: "POST",
+      body: request,
+    });
+  },
+
+  update(tripPlanId, request) {
+    return apiRequest(`/api/trip-plans/${tripPlanId}`, {
+      method: "PUT",
+      body: request,
+    });
+  },
+
+  remove(tripPlanId) {
+    return apiRequest(`/api/trip-plans/${tripPlanId}`, {
+      method: "DELETE",
+    });
+  },
+};

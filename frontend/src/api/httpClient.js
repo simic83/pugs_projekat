@@ -1,3 +1,5 @@
+import { tokenStorage } from "../utils/tokenStorage.js";
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
 export function getApiBaseUrl() {
@@ -16,15 +18,16 @@ export function createApiUrl(resourcePath) {
 }
 
 export async function apiRequest(resourcePath, options = {}) {
-  const { method = "GET", body, token } = options;
+  const { method = "GET", body, token, skipAuth = false } = options;
   const headers = new Headers();
 
   if (body !== undefined) {
     headers.set("Content-Type", "application/json");
   }
 
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+  const authToken = skipAuth ? null : (token ?? tokenStorage.getToken());
+  if (authToken) {
+    headers.set("Authorization", `Bearer ${authToken}`);
   }
 
   const response = await fetch(createApiUrl(resourcePath), {

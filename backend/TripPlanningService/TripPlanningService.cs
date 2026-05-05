@@ -1,0 +1,671 @@
+using System.Fabric;
+using Microsoft.Data.SqlClient;
+using Microsoft.ServiceFabric.Services.Communication.Runtime;
+using Microsoft.ServiceFabric.Services.Remoting.Runtime;
+using Microsoft.ServiceFabric.Services.Runtime;
+using TravelPlanner.Contracts.Activities;
+using TravelPlanner.Contracts.Checklist;
+using TravelPlanner.Contracts.Common;
+using TravelPlanner.Contracts.Destinations;
+using TravelPlanner.Contracts.Enums;
+using TravelPlanner.Contracts.Interfaces;
+using TravelPlanner.Contracts.Trips;
+using TripPlanningService.Configuration;
+using TripPlanningService.Data;
+using TripPlanningService.Models;
+
+namespace TripPlanningService
+{
+    internal sealed class TripPlanningService : StatefulService, ITripPlanningService
+    {
+        private readonly ITripPlanningRepository repository;
+
+        public TripPlanningService(StatefulServiceContext context)
+            : base(context)
+        {
+            var settings = FabricConfigurationProvider.Load(context);
+            repository = new TripPlanningRepository(settings.DefaultConnection);
+        }
+
+        protected override IEnumerable<ServiceReplicaListener> CreateServiceReplicaListeners()
+        {
+            return this.CreateServiceRemotingReplicaListeners();
+        }
+
+        public async Task<List<TripPlanDto>> GetTripPlansAsync(Guid userId)
+        {
+            if (userId == Guid.Empty)
+            {
+                return new List<TripPlanDto>();
+            }
+
+            try
+            {
+                var tripPlans = await repository.GetTripPlansByOwnerAsync(userId);
+                return tripPlans.Select(ToDto).ToList();
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Trip plan list failed", exception);
+                return new List<TripPlanDto>();
+            }
+        }
+
+        public async Task<TripPlanDto?> GetTripPlanByIdAsync(Guid tripPlanId, Guid userId)
+        {
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                return tripPlan is null ? null : ToDto(tripPlan);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Trip plan lookup failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<TripPlanDto?> CreateTripPlanAsync(CreateTripPlanRequestDto request)
+        {
+            if (!IsValidTripPlan(request.OwnerUserId, request.Title, request.StartDate, request.EndDate, request.PlannedBudget))
+            {
+                return null;
+            }
+
+            var now = DateTime.UtcNow;
+            var tripPlan = new TripPlanModel
+            {
+                Id = Guid.NewGuid(),
+                OwnerUserId = request.OwnerUserId,
+                Title = request.Title.Trim(),
+                Description = NormalizeOptionalText(request.Description),
+                StartDate = request.StartDate.Date,
+                EndDate = request.EndDate.Date,
+                PlannedBudget = request.PlannedBudget,
+                Notes = NormalizeOptionalText(request.Notes),
+                CreatedAt = now
+            };
+
+            try
+            {
+                var created = await repository.CreateTripPlanAsync(tripPlan);
+                return ToDto(created);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Trip plan create failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<TripPlanDto?> UpdateTripPlanAsync(Guid tripPlanId, Guid userId, UpdateTripPlanRequestDto request)
+        {
+            if (!IsValidTripPlan(userId, request.Title, request.StartDate, request.EndDate, request.PlannedBudget))
+            {
+                return null;
+            }
+
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return null;
+                }
+
+                tripPlan.Title = request.Title.Trim();
+                tripPlan.Description = NormalizeOptionalText(request.Description);
+                tripPlan.StartDate = request.StartDate.Date;
+                tripPlan.EndDate = request.EndDate.Date;
+                tripPlan.PlannedBudget = request.PlannedBudget;
+                tripPlan.Notes = NormalizeOptionalText(request.Notes);
+                tripPlan.UpdatedAt = DateTime.UtcNow;
+
+                var updated = await repository.UpdateTripPlanAsync(tripPlan);
+                return updated ? ToDto(tripPlan) : null;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Trip plan update failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteTripPlanAsync(Guid tripPlanId, Guid userId)
+        {
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return Failure("Trip plan was not found.");
+                }
+
+                var deleted = await repository.DeleteTripPlanAsync(tripPlanId);
+                return deleted ? Success("Trip plan deleted.") : Failure("Trip plan was not deleted.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Trip plan delete failed", exception);
+                return Failure(exception.Message);
+            }
+        }
+
+        public async Task<List<DestinationDto>> GetDestinationsAsync(Guid tripPlanId, Guid userId)
+        {
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return new List<DestinationDto>();
+                }
+
+                var destinations = await repository.GetDestinationsByTripPlanIdAsync(tripPlanId);
+                return destinations.Select(ToDto).ToList();
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Destination list failed", exception);
+                return new List<DestinationDto>();
+            }
+        }
+
+        public async Task<DestinationDto?> CreateDestinationAsync(Guid tripPlanId, Guid userId, CreateDestinationRequestDto request)
+        {
+            if (!IsValidDestination(request.Name, request.ArrivalDate, request.DepartureDate))
+            {
+                return null;
+            }
+
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return null;
+                }
+
+                var destination = new DestinationModel
+                {
+                    Id = Guid.NewGuid(),
+                    TripPlanId = tripPlanId,
+                    Name = request.Name.Trim(),
+                    Location = NormalizeOptionalText(request.Location),
+                    ArrivalDate = request.ArrivalDate.Date,
+                    DepartureDate = request.DepartureDate.Date,
+                    Description = NormalizeOptionalText(request.Description),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var created = await repository.CreateDestinationAsync(destination);
+                return ToDto(created);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Destination create failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<DestinationDto?> UpdateDestinationAsync(
+            Guid tripPlanId,
+            Guid destinationId,
+            Guid userId,
+            UpdateDestinationRequestDto request)
+        {
+            if (!IsValidDestination(request.Name, request.ArrivalDate, request.DepartureDate))
+            {
+                return null;
+            }
+
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return null;
+                }
+
+                var destination = await repository.GetDestinationByIdAsync(destinationId);
+                if (destination is null || destination.TripPlanId != tripPlanId)
+                {
+                    return null;
+                }
+
+                destination.Name = request.Name.Trim();
+                destination.Location = NormalizeOptionalText(request.Location);
+                destination.ArrivalDate = request.ArrivalDate.Date;
+                destination.DepartureDate = request.DepartureDate.Date;
+                destination.Description = NormalizeOptionalText(request.Description);
+                destination.UpdatedAt = DateTime.UtcNow;
+
+                var updated = await repository.UpdateDestinationAsync(destination);
+                return updated ? ToDto(destination) : null;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Destination update failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteDestinationAsync(Guid tripPlanId, Guid destinationId, Guid userId)
+        {
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return Failure("Trip plan was not found.");
+                }
+
+                var destination = await repository.GetDestinationByIdAsync(destinationId);
+                if (destination is null || destination.TripPlanId != tripPlanId)
+                {
+                    return Failure("Destination was not found.");
+                }
+
+                var deleted = await repository.DeleteDestinationAsync(destinationId);
+                return deleted ? Success("Destination deleted.") : Failure("Destination was not deleted.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Destination delete failed", exception);
+                return Failure(exception.Message);
+            }
+        }
+
+        public async Task<List<ActivityDto>> GetActivitiesAsync(Guid tripPlanId, Guid userId)
+        {
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return new List<ActivityDto>();
+                }
+
+                var activities = await repository.GetActivitiesByTripPlanIdAsync(tripPlanId);
+                return activities.Select(ToDto).ToList();
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Activity list failed", exception);
+                return new List<ActivityDto>();
+            }
+        }
+
+        public async Task<ActivityDto?> CreateActivityAsync(Guid tripPlanId, Guid userId, CreateActivityRequestDto request)
+        {
+            if (!IsValidActivity(request.Title, request.EstimatedCost, request.Status))
+            {
+                return null;
+            }
+
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return null;
+                }
+
+                var activity = new ActivityModel
+                {
+                    Id = Guid.NewGuid(),
+                    TripPlanId = tripPlanId,
+                    Title = request.Title.Trim(),
+                    ActivityDate = request.ActivityDate.Date,
+                    ActivityTime = request.ActivityTime,
+                    Location = NormalizeOptionalText(request.Location),
+                    Description = NormalizeOptionalText(request.Description),
+                    EstimatedCost = request.EstimatedCost,
+                    Status = request.Status.ToString(),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var created = await repository.CreateActivityAsync(activity);
+                return ToDto(created);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Activity create failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<ActivityDto?> UpdateActivityAsync(
+            Guid tripPlanId,
+            Guid activityId,
+            Guid userId,
+            UpdateActivityRequestDto request)
+        {
+            if (!IsValidActivity(request.Title, request.EstimatedCost, request.Status))
+            {
+                return null;
+            }
+
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return null;
+                }
+
+                var activity = await repository.GetActivityByIdAsync(activityId);
+                if (activity is null || activity.TripPlanId != tripPlanId)
+                {
+                    return null;
+                }
+
+                activity.Title = request.Title.Trim();
+                activity.ActivityDate = request.ActivityDate.Date;
+                activity.ActivityTime = request.ActivityTime;
+                activity.Location = NormalizeOptionalText(request.Location);
+                activity.Description = NormalizeOptionalText(request.Description);
+                activity.EstimatedCost = request.EstimatedCost;
+                activity.Status = request.Status.ToString();
+                activity.UpdatedAt = DateTime.UtcNow;
+
+                var updated = await repository.UpdateActivityAsync(activity);
+                return updated ? ToDto(activity) : null;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Activity update failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteActivityAsync(Guid tripPlanId, Guid activityId, Guid userId)
+        {
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return Failure("Trip plan was not found.");
+                }
+
+                var activity = await repository.GetActivityByIdAsync(activityId);
+                if (activity is null || activity.TripPlanId != tripPlanId)
+                {
+                    return Failure("Activity was not found.");
+                }
+
+                var deleted = await repository.DeleteActivityAsync(activityId);
+                return deleted ? Success("Activity deleted.") : Failure("Activity was not deleted.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Activity delete failed", exception);
+                return Failure(exception.Message);
+            }
+        }
+
+        public async Task<List<ChecklistItemDto>> GetChecklistItemsAsync(Guid tripPlanId, Guid userId)
+        {
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return new List<ChecklistItemDto>();
+                }
+
+                var checklistItems = await repository.GetChecklistItemsByTripPlanIdAsync(tripPlanId);
+                return checklistItems.Select(ToDto).ToList();
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Checklist item list failed", exception);
+                return new List<ChecklistItemDto>();
+            }
+        }
+
+        public async Task<ChecklistItemDto?> CreateChecklistItemAsync(
+            Guid tripPlanId,
+            Guid userId,
+            CreateChecklistItemRequestDto request)
+        {
+            if (tripPlanId == Guid.Empty
+                || request.TripPlanId == Guid.Empty
+                || request.TripPlanId != tripPlanId
+                || !IsValidChecklistTitle(request.Title))
+            {
+                return null;
+            }
+
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return null;
+                }
+
+                var checklistItem = new ChecklistItemModel
+                {
+                    Id = Guid.NewGuid(),
+                    TripPlanId = tripPlanId,
+                    Title = request.Title.Trim(),
+                    IsCompleted = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var created = await repository.CreateChecklistItemAsync(checklistItem);
+                return ToDto(created);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Checklist item create failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<ChecklistItemDto?> UpdateChecklistItemAsync(
+            Guid tripPlanId,
+            Guid checklistItemId,
+            Guid userId,
+            UpdateChecklistItemRequestDto request)
+        {
+            if (!IsValidChecklistTitle(request.Title))
+            {
+                return null;
+            }
+
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return null;
+                }
+
+                var checklistItem = await repository.GetChecklistItemByIdAsync(checklistItemId);
+                if (checklistItem is null || checklistItem.TripPlanId != tripPlanId)
+                {
+                    return null;
+                }
+
+                checklistItem.Title = request.Title.Trim();
+                checklistItem.IsCompleted = request.IsCompleted;
+                checklistItem.UpdatedAt = DateTime.UtcNow;
+
+                var updated = await repository.UpdateChecklistItemAsync(checklistItem);
+                return updated ? ToDto(checklistItem) : null;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Checklist item update failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteChecklistItemAsync(Guid tripPlanId, Guid checklistItemId, Guid userId)
+        {
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return Failure("Trip plan was not found.");
+                }
+
+                var checklistItem = await repository.GetChecklistItemByIdAsync(checklistItemId);
+                if (checklistItem is null || checklistItem.TripPlanId != tripPlanId)
+                {
+                    return Failure("Checklist item was not found.");
+                }
+
+                var deleted = await repository.DeleteChecklistItemAsync(checklistItemId);
+                return deleted ? Success("Checklist item deleted.") : Failure("Checklist item was not deleted.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Checklist item delete failed", exception);
+                return Failure(exception.Message);
+            }
+        }
+
+        private async Task<TripPlanModel?> GetOwnedTripPlanAsync(Guid tripPlanId, Guid userId)
+        {
+            if (tripPlanId == Guid.Empty || userId == Guid.Empty)
+            {
+                return null;
+            }
+
+            var tripPlan = await repository.GetTripPlanByIdAsync(tripPlanId);
+            return tripPlan?.OwnerUserId == userId ? tripPlan : null;
+        }
+
+        private static bool IsValidTripPlan(Guid ownerUserId, string title, DateTime startDate, DateTime endDate, decimal plannedBudget)
+        {
+            return ownerUserId != Guid.Empty
+                && !string.IsNullOrWhiteSpace(title)
+                && endDate.Date >= startDate.Date
+                && plannedBudget >= 0;
+        }
+
+        private static bool IsValidDestination(string name, DateTime arrivalDate, DateTime departureDate)
+        {
+            return !string.IsNullOrWhiteSpace(name)
+                && departureDate.Date >= arrivalDate.Date;
+        }
+
+        private static bool IsValidActivity(string title, decimal estimatedCost, ActivityStatus status)
+        {
+            return !string.IsNullOrWhiteSpace(title)
+                && estimatedCost >= 0
+                && Enum.IsDefined(typeof(ActivityStatus), status);
+        }
+
+        private static bool IsValidChecklistTitle(string title)
+        {
+            return !string.IsNullOrWhiteSpace(title)
+                && title.Trim().Length <= 150;
+        }
+
+        private static string? NormalizeOptionalText(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        private static TripPlanDto ToDto(TripPlanModel tripPlan)
+        {
+            return new TripPlanDto
+            {
+                Id = tripPlan.Id,
+                OwnerUserId = tripPlan.OwnerUserId,
+                Title = tripPlan.Title,
+                Description = tripPlan.Description,
+                StartDate = tripPlan.StartDate,
+                EndDate = tripPlan.EndDate,
+                PlannedBudget = tripPlan.PlannedBudget,
+                Notes = tripPlan.Notes,
+                CreatedAtUtc = tripPlan.CreatedAt,
+                UpdatedAtUtc = tripPlan.UpdatedAt
+            };
+        }
+
+        private static DestinationDto ToDto(DestinationModel destination)
+        {
+            return new DestinationDto
+            {
+                Id = destination.Id,
+                TripPlanId = destination.TripPlanId,
+                Name = destination.Name,
+                Location = destination.Location,
+                ArrivalDate = destination.ArrivalDate,
+                DepartureDate = destination.DepartureDate,
+                Description = destination.Description,
+                CreatedAtUtc = destination.CreatedAt,
+                UpdatedAtUtc = destination.UpdatedAt
+            };
+        }
+
+        private static ActivityDto ToDto(ActivityModel activity)
+        {
+            return new ActivityDto
+            {
+                Id = activity.Id,
+                TripPlanId = activity.TripPlanId,
+                Title = activity.Title,
+                ActivityDate = activity.ActivityDate,
+                ActivityTime = activity.ActivityTime,
+                Location = activity.Location,
+                Description = activity.Description,
+                EstimatedCost = activity.EstimatedCost,
+                Status = ParseStatus(activity.Status),
+                CreatedAtUtc = activity.CreatedAt,
+                UpdatedAtUtc = activity.UpdatedAt
+            };
+        }
+
+        private static ChecklistItemDto ToDto(ChecklistItemModel checklistItem)
+        {
+            return new ChecklistItemDto
+            {
+                Id = checklistItem.Id,
+                TripPlanId = checklistItem.TripPlanId,
+                Title = checklistItem.Title,
+                IsCompleted = checklistItem.IsCompleted,
+                CreatedAt = checklistItem.CreatedAt,
+                UpdatedAt = checklistItem.UpdatedAt
+            };
+        }
+
+        private static ActivityStatus ParseStatus(string status)
+        {
+            return Enum.TryParse<ActivityStatus>(status, ignoreCase: true, out var parsed)
+                && Enum.IsDefined(typeof(ActivityStatus), parsed)
+                    ? parsed
+                    : ActivityStatus.Planned;
+        }
+
+        private static OperationResultDto Success(string message)
+        {
+            return new OperationResultDto
+            {
+                Succeeded = true,
+                Message = message
+            };
+        }
+
+        private static OperationResultDto Failure(string message)
+        {
+            return new OperationResultDto
+            {
+                Succeeded = false,
+                Message = message
+            };
+        }
+
+        private void LogDatabaseError(string message, Exception exception)
+        {
+            ServiceEventSource.Current.ServiceMessage(Context, "{0}: {1}", message, exception.Message);
+        }
+    }
+}

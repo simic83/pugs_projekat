@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<StartupServicesManifest xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.microsoft.com/2011/01/fabric">
+  <Parameters>
+    <Parameter Name="SharingService_MinReplicaSetSize" DefaultValue="3" />
+    <Parameter Name="SharingService_PartitionCount" DefaultValue="1" />
+    <Parameter Name="SharingService_TargetReplicaSetSize" DefaultValue="3" />
+    <Parameter Name="BudgetService_MinReplicaSetSize" DefaultValue="3" />
+    <Parameter Name="BudgetService_PartitionCount" DefaultValue="1" />
+    <Parameter Name="BudgetService_TargetReplicaSetSize" DefaultValue="3" />
+    <Parameter Name="TripPlanningService_MinReplicaSetSize" DefaultValue="3" />
+    <Parameter Name="TripPlanningService_PartitionCount" DefaultValue="1" />
+    <Parameter Name="TripPlanningService_TargetReplicaSetSize" DefaultValue="3" />
+    <Parameter Name="IdentityService_InstanceCount" DefaultValue="-1" />
+    <Parameter Name="ApiGatewayService_InstanceCount" DefaultValue="-1" />
+  </Parameters>
+  <Services>
+    <!-- The section below creates instances of service types, when an instance of this 
+         application type is created. You can also create one or more instances of service type using the 
+         ServiceFabric PowerShell module.
+
+         The attribute ServiceTypeName below must match the name defined in the imported ServiceManifest.xml file. -->
+    <Service Name="SharingService" ServicePackageActivationMode="ExclusiveProcess">
+      <StatefulService ServiceTypeName="SharingServiceType" TargetReplicaSetSize="[SharingService_TargetReplicaSetSize]" MinReplicaSetSize="[SharingService_MinReplicaSetSize]">
+        <UniformInt64Partition PartitionCount="[SharingService_PartitionCount]" LowKey="-9223372036854775808" HighKey="9223372036854775807" />
+      </StatefulService>
+    </Service>
+    <Service Name="BudgetService" ServicePackageActivationMode="ExclusiveProcess">
+      <StatefulService ServiceTypeName="BudgetServiceType" TargetReplicaSetSize="[BudgetService_TargetReplicaSetSize]" MinReplicaSetSize="[BudgetService_MinReplicaSetSize]">
+        <UniformInt64Partition PartitionCount="[BudgetService_PartitionCount]" LowKey="-9223372036854775808" HighKey="9223372036854775807" />
+      </StatefulService>
+    </Service>
+    <Service Name="TripPlanningService" ServicePackageActivationMode="ExclusiveProcess">
+      <StatefulService ServiceTypeName="TripPlanningServiceType" TargetReplicaSetSize="[TripPlanningService_TargetReplicaSetSize]" MinReplicaSetSize="[TripPlanningService_MinReplicaSetSize]">
+        <UniformInt64Partition PartitionCount="[TripPlanningService_PartitionCount]" LowKey="-9223372036854775808" HighKey="9223372036854775807" />
+      </StatefulService>
+    </Service>
+    <Service Name="IdentityService" ServicePackageActivationMode="ExclusiveProcess">
+      <StatelessService ServiceTypeName="IdentityServiceType" InstanceCount="[IdentityService_InstanceCount]">
+        <SingletonPartition />
+      </StatelessService>
+    </Service>
+    <Service Name="ApiGatewayService" ServicePackageActivationMode="ExclusiveProcess">
+      <StatelessService ServiceTypeName="ApiGatewayServiceType" InstanceCount="[ApiGatewayService_InstanceCount]">
+        <SingletonPartition />
+      </StatelessService>
+    </Service>
+  </Services>
+</StartupServicesManifest>

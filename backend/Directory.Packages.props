@@ -1,9 +1,0 @@
-<Project>
-  <ItemGroup>
-    <PackageVersion Include="Microsoft.ServiceFabric.AspNetCore.Kestrel" Version="8.4.268" />
-    <PackageVersion Include="Microsoft.ServiceFabric.Services" Version="8.4.268" />
-    <PackageVersion Include="Microsoft.ServiceFabric.Services.Remoting" Version="8.4.268" />
-    <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.1" />
-    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.14.0" />
-  </ItemGroup>
-</Project>

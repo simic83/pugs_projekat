@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<StartupServices xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.microsoft.com/2011/01/fabric">
+  <Parameters>
+    <Parameter Name="SharingService_PartitionCount" Value="1" />
+    <Parameter Name="SharingService_MinReplicaSetSize" Value="1" />
+    <Parameter Name="SharingService_TargetReplicaSetSize" Value="1" />
+    <Parameter Name="BudgetService_PartitionCount" Value="1" />
+    <Parameter Name="BudgetService_MinReplicaSetSize" Value="1" />
+    <Parameter Name="BudgetService_TargetReplicaSetSize" Value="1" />
+    <Parameter Name="TripPlanningService_PartitionCount" Value="1" />
+    <Parameter Name="TripPlanningService_MinReplicaSetSize" Value="1" />
+    <Parameter Name="TripPlanningService_TargetReplicaSetSize" Value="1" />
+    <Parameter Name="IdentityService_InstanceCount" Value="1" />
+    <Parameter Name="ApiGatewayService_InstanceCount" Value="1" />
+  </Parameters>
+</StartupServices>
