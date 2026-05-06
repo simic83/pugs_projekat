@@ -7,10 +7,13 @@ using SharingService.Configuration;
 using SharingService.Data;
 using SharingService.Models;
 using TravelPlanner.Contracts.Activities;
+using TravelPlanner.Contracts.Budget;
+using TravelPlanner.Contracts.Checklist;
 using TravelPlanner.Contracts.Common;
 using TravelPlanner.Contracts.Destinations;
 using TravelPlanner.Contracts.Enums;
 using TravelPlanner.Contracts.Interfaces;
+using TravelPlanner.Contracts.Notes;
 using TravelPlanner.Contracts.Sharing;
 using TravelPlanner.Contracts.Trips;
 
@@ -201,6 +204,11 @@ namespace SharingService
                 return null;
             }
 
+            if (!IsValidStoredAccessLevel(shareToken.AccessLevel))
+            {
+                return null;
+            }
+
             return shareToken;
         }
 
@@ -214,13 +222,29 @@ namespace SharingService
 
             var destinations = await repository.GetDestinationsByTripPlanIdAsync(shareToken.TripPlanId);
             var activities = await repository.GetActivitiesByTripPlanIdAsync(shareToken.TripPlanId);
+            var expenses = await repository.GetExpensesByTripPlanIdAsync(shareToken.TripPlanId);
+            var totalExpenses = await repository.GetTotalExpensesByTripPlanIdAsync(shareToken.TripPlanId);
+            var checklistItems = await repository.GetChecklistItemsByTripPlanIdAsync(shareToken.TripPlanId);
+            var notes = await repository.GetNotesByTripPlanIdAsync(shareToken.TripPlanId);
+            var accessLevel = ParseAccessLevel(shareToken.AccessLevel);
 
             return new SharedTripPlanDto
             {
                 Share = ToDto(shareToken),
                 TripPlan = ToDto(tripPlan),
+                AccessLevel = accessLevel,
                 Destinations = destinations.Select(ToDto).ToList(),
-                Activities = activities.Select(ToDto).ToList()
+                Activities = activities.Select(ToDto).ToList(),
+                Expenses = expenses.Select(ToDto).ToList(),
+                BudgetSummary = new BudgetSummaryDto
+                {
+                    TripPlanId = tripPlan.Id,
+                    PlannedBudget = tripPlan.PlannedBudget,
+                    TotalExpenses = totalExpenses,
+                    RemainingBudget = tripPlan.PlannedBudget - totalExpenses
+                },
+                ChecklistItems = checklistItems.Select(ToDto).ToList(),
+                Notes = notes.Select(ToDto).ToList()
             };
         }
 
@@ -254,6 +278,12 @@ namespace SharingService
             return string.Equals(accessLevel, "EDIT", StringComparison.OrdinalIgnoreCase)
                 ? ShareAccessLevel.Edit
                 : ShareAccessLevel.View;
+        }
+
+        private static bool IsValidStoredAccessLevel(string accessLevel)
+        {
+            return string.Equals(accessLevel, "VIEW", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(accessLevel, "EDIT", StringComparison.OrdinalIgnoreCase);
         }
 
         private static ShareTokenDto ToDto(ShareTokenModel shareToken)
@@ -322,12 +352,62 @@ namespace SharingService
             };
         }
 
+        private static ExpenseDto ToDto(ExpenseModel expense)
+        {
+            return new ExpenseDto
+            {
+                Id = expense.Id,
+                TripPlanId = expense.TripPlanId,
+                Title = expense.Title,
+                Category = ParseCategory(expense.Category),
+                Amount = expense.Amount,
+                ExpenseDate = expense.ExpenseDate,
+                Description = expense.Description,
+                CreatedAt = expense.CreatedAt,
+                UpdatedAt = expense.UpdatedAt
+            };
+        }
+
+        private static ChecklistItemDto ToDto(ChecklistItemModel checklistItem)
+        {
+            return new ChecklistItemDto
+            {
+                Id = checklistItem.Id,
+                TripPlanId = checklistItem.TripPlanId,
+                Title = checklistItem.Title,
+                IsCompleted = checklistItem.IsCompleted,
+                CreatedAt = checklistItem.CreatedAt,
+                UpdatedAt = checklistItem.UpdatedAt
+            };
+        }
+
+        private static NoteDto ToDto(NoteModel note)
+        {
+            return new NoteDto
+            {
+                Id = note.Id,
+                TripPlanId = note.TripPlanId,
+                Title = note.Title,
+                Content = note.Content,
+                CreatedAt = note.CreatedAt,
+                UpdatedAt = note.UpdatedAt
+            };
+        }
+
         private static ActivityStatus ParseStatus(string status)
         {
             return Enum.TryParse<ActivityStatus>(status, ignoreCase: true, out var parsed)
                 && Enum.IsDefined(typeof(ActivityStatus), parsed)
                     ? parsed
                     : ActivityStatus.Planned;
+        }
+
+        private static ExpenseCategory ParseCategory(string category)
+        {
+            return Enum.TryParse<ExpenseCategory>(category, ignoreCase: true, out var parsed)
+                && Enum.IsDefined(typeof(ExpenseCategory), parsed)
+                    ? parsed
+                    : ExpenseCategory.Other;
         }
 
         private static OperationResultDto Success(string message)

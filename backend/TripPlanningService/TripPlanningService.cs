@@ -9,6 +9,7 @@ using TravelPlanner.Contracts.Common;
 using TravelPlanner.Contracts.Destinations;
 using TravelPlanner.Contracts.Enums;
 using TravelPlanner.Contracts.Interfaces;
+using TravelPlanner.Contracts.Notes;
 using TravelPlanner.Contracts.Trips;
 using TripPlanningService.Configuration;
 using TripPlanningService.Data;
@@ -530,6 +531,128 @@ namespace TripPlanningService
             }
         }
 
+        public async Task<List<NoteDto>> GetNotesAsync(Guid tripPlanId, Guid userId)
+        {
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return new List<NoteDto>();
+                }
+
+                var notes = await repository.GetNotesByTripPlanIdAsync(tripPlanId);
+                return notes.Select(ToDto).ToList();
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Note list failed", exception);
+                return new List<NoteDto>();
+            }
+        }
+
+        public async Task<NoteDto?> CreateNoteAsync(Guid tripPlanId, Guid userId, CreateNoteRequestDto request)
+        {
+            if (tripPlanId == Guid.Empty
+                || request.TripPlanId == Guid.Empty
+                || request.TripPlanId != tripPlanId
+                || !IsValidNoteTitle(request.Title))
+            {
+                return null;
+            }
+
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return null;
+                }
+
+                var note = new NoteModel
+                {
+                    Id = Guid.NewGuid(),
+                    TripPlanId = tripPlanId,
+                    Title = request.Title.Trim(),
+                    Content = NormalizeOptionalText(request.Content),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var created = await repository.CreateNoteAsync(note);
+                return ToDto(created);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Note create failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<NoteDto?> UpdateNoteAsync(
+            Guid tripPlanId,
+            Guid noteId,
+            Guid userId,
+            UpdateNoteRequestDto request)
+        {
+            if (!IsValidNoteTitle(request.Title))
+            {
+                return null;
+            }
+
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return null;
+                }
+
+                var note = await repository.GetNoteByIdAsync(noteId);
+                if (note is null || note.TripPlanId != tripPlanId)
+                {
+                    return null;
+                }
+
+                note.Title = request.Title.Trim();
+                note.Content = NormalizeOptionalText(request.Content);
+                note.UpdatedAt = DateTime.UtcNow;
+
+                var updated = await repository.UpdateNoteAsync(note);
+                return updated ? ToDto(note) : null;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Note update failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteNoteAsync(Guid tripPlanId, Guid noteId, Guid userId)
+        {
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return Failure("Trip plan was not found.");
+                }
+
+                var note = await repository.GetNoteByIdAsync(noteId);
+                if (note is null || note.TripPlanId != tripPlanId)
+                {
+                    return Failure("Note was not found.");
+                }
+
+                var deleted = await repository.DeleteNoteAsync(noteId);
+                return deleted ? Success("Note deleted.") : Failure("Note was not deleted.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Note delete failed", exception);
+                return Failure(exception.Message);
+            }
+        }
+
         private async Task<TripPlanModel?> GetOwnedTripPlanAsync(Guid tripPlanId, Guid userId)
         {
             if (tripPlanId == Guid.Empty || userId == Guid.Empty)
@@ -563,6 +686,12 @@ namespace TripPlanningService
         }
 
         private static bool IsValidChecklistTitle(string title)
+        {
+            return !string.IsNullOrWhiteSpace(title)
+                && title.Trim().Length <= 150;
+        }
+
+        private static bool IsValidNoteTitle(string title)
         {
             return !string.IsNullOrWhiteSpace(title)
                 && title.Trim().Length <= 150;
@@ -634,6 +763,19 @@ namespace TripPlanningService
                 IsCompleted = checklistItem.IsCompleted,
                 CreatedAt = checklistItem.CreatedAt,
                 UpdatedAt = checklistItem.UpdatedAt
+            };
+        }
+
+        private static NoteDto ToDto(NoteModel note)
+        {
+            return new NoteDto
+            {
+                Id = note.Id,
+                TripPlanId = note.TripPlanId,
+                Title = note.Title,
+                Content = note.Content,
+                CreatedAt = note.CreatedAt,
+                UpdatedAt = note.UpdatedAt
             };
         }
 

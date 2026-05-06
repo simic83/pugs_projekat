@@ -43,4 +43,14 @@ internal interface ITripPlanningRepository
     Task<bool> UpdateChecklistItemAsync(ChecklistItemModel checklistItem);
 
     Task<bool> DeleteChecklistItemAsync(Guid checklistItemId);
+
+    Task<NoteModel> CreateNoteAsync(NoteModel note);
+
+    Task<List<NoteModel>> GetNotesByTripPlanIdAsync(Guid tripPlanId);
+
+    Task<NoteModel?> GetNoteByIdAsync(Guid noteId);
+
+    Task<bool> UpdateNoteAsync(NoteModel note);
+
+    Task<bool> DeleteNoteAsync(Guid noteId);
 }

@@ -1,6 +1,10 @@
+using ApiGatewayService.Configuration;
+using ApiGatewayService.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using TravelPlanner.Contracts.Common;
+using TravelPlanner.Contracts.Interfaces;
+using TravelPlanner.Contracts.Notes;
 
 namespace ApiGatewayService.Controllers;
 
@@ -10,17 +14,58 @@ namespace ApiGatewayService.Controllers;
 public sealed class NotesController : ControllerBase
 {
     [HttpGet]
-    public ActionResult<List<object>> GetNotes(Guid tripPlanId)
+    public async Task<ActionResult<List<NoteDto>>> GetNotes(Guid tripPlanId)
     {
-        return Ok(new List<object>());
+        var tripPlanningService = GatewayServiceProxyFactory.CreateStateful<ITripPlanningService>(ServiceNames.TripPlanningServiceUri);
+        var notes = await tripPlanningService.GetNotesAsync(tripPlanId, ControllerUserContext.GetUserId(this));
+
+        return Ok(notes);
     }
 
     [HttpPost]
-    public ActionResult CreateNote(Guid tripPlanId)
+    public async Task<ActionResult<NoteDto>> CreateNote(Guid tripPlanId, CreateNoteRequestDto request)
     {
-        return StatusCode(StatusCodes.Status501NotImplemented, new
+        var tripPlanningService = GatewayServiceProxyFactory.CreateStateful<ITripPlanningService>(ServiceNames.TripPlanningServiceUri);
+        request.TripPlanId = tripPlanId;
+        var note = await tripPlanningService.CreateNoteAsync(
+            tripPlanId,
+            ControllerUserContext.GetUserId(this),
+            request);
+
+        if (note is null)
         {
-            message = "Notes persistence will be added after the trip planning service is implemented."
-        });
+            return BadRequest(new OperationResultDto
+            {
+                Succeeded = false,
+                Message = "Note request is invalid or trip plan was not found."
+            });
+        }
+
+        return Created($"/api/trip-plans/{tripPlanId}/notes/{note.Id}", note);
+    }
+
+    [HttpPut("{noteId:guid}")]
+    public async Task<ActionResult<NoteDto>> UpdateNote(Guid tripPlanId, Guid noteId, UpdateNoteRequestDto request)
+    {
+        var tripPlanningService = GatewayServiceProxyFactory.CreateStateful<ITripPlanningService>(ServiceNames.TripPlanningServiceUri);
+        var note = await tripPlanningService.UpdateNoteAsync(
+            tripPlanId,
+            noteId,
+            ControllerUserContext.GetUserId(this),
+            request);
+
+        return note is null ? NotFound() : Ok(note);
+    }
+
+    [HttpDelete("{noteId:guid}")]
+    public async Task<ActionResult<OperationResultDto>> DeleteNote(Guid tripPlanId, Guid noteId)
+    {
+        var tripPlanningService = GatewayServiceProxyFactory.CreateStateful<ITripPlanningService>(ServiceNames.TripPlanningServiceUri);
+        var result = await tripPlanningService.DeleteNoteAsync(
+            tripPlanId,
+            noteId,
+            ControllerUserContext.GetUserId(this));
+
+        return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 }

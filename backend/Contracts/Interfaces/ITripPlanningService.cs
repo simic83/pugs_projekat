@@ -3,6 +3,7 @@ using TravelPlanner.Contracts.Activities;
 using TravelPlanner.Contracts.Checklist;
 using TravelPlanner.Contracts.Common;
 using TravelPlanner.Contracts.Destinations;
+using TravelPlanner.Contracts.Notes;
 using TravelPlanner.Contracts.Trips;
 
 namespace TravelPlanner.Contracts.Interfaces;
@@ -42,4 +43,12 @@ public interface ITripPlanningService : IService
     Task<ChecklistItemDto?> UpdateChecklistItemAsync(Guid tripPlanId, Guid checklistItemId, Guid userId, UpdateChecklistItemRequestDto request);
 
     Task<OperationResultDto> DeleteChecklistItemAsync(Guid tripPlanId, Guid checklistItemId, Guid userId);
+
+    Task<List<NoteDto>> GetNotesAsync(Guid tripPlanId, Guid userId);
+
+    Task<NoteDto?> CreateNoteAsync(Guid tripPlanId, Guid userId, CreateNoteRequestDto request);
+
+    Task<NoteDto?> UpdateNoteAsync(Guid tripPlanId, Guid noteId, Guid userId, UpdateNoteRequestDto request);
+
+    Task<OperationResultDto> DeleteNoteAsync(Guid tripPlanId, Guid noteId, Guid userId);
 }

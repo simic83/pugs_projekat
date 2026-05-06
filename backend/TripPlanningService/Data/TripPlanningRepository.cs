@@ -312,6 +312,78 @@ internal sealed class TripPlanningRepository : ITripPlanningRepository
         return await command.ExecuteNonQueryAsync() > 0;
     }
 
+    public async Task<NoteModel> CreateNoteAsync(NoteModel note)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(
+            """
+            INSERT INTO dbo.Notes
+                (Id, TripPlanId, Title, Content, CreatedAt, UpdatedAt)
+            VALUES
+                (@Id, @TripPlanId, @Title, @Content, @CreatedAt, @UpdatedAt);
+            """,
+            connection);
+
+        AddNoteParameters(command, note);
+        await command.ExecuteNonQueryAsync();
+        return note;
+    }
+
+    public async Task<List<NoteModel>> GetNotesByTripPlanIdAsync(Guid tripPlanId)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(
+            NoteSelectSql + " WHERE TripPlanId = @TripPlanId ORDER BY CreatedAt DESC, Title;",
+            connection);
+        command.Parameters.AddWithValue("@TripPlanId", tripPlanId);
+
+        await using var reader = await command.ExecuteReaderAsync();
+        var notes = new List<NoteModel>();
+
+        while (await reader.ReadAsync())
+        {
+            notes.Add(ReadNote(reader));
+        }
+
+        return notes;
+    }
+
+    public async Task<NoteModel?> GetNoteByIdAsync(Guid noteId)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(NoteSelectSql + " WHERE Id = @Id;", connection);
+        command.Parameters.AddWithValue("@Id", noteId);
+
+        await using var reader = await command.ExecuteReaderAsync();
+        return await reader.ReadAsync() ? ReadNote(reader) : null;
+    }
+
+    public async Task<bool> UpdateNoteAsync(NoteModel note)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(
+            """
+            UPDATE dbo.Notes
+            SET Title = @Title,
+                Content = @Content,
+                UpdatedAt = @UpdatedAt
+            WHERE Id = @Id;
+            """,
+            connection);
+
+        AddNoteParameters(command, note);
+        return await command.ExecuteNonQueryAsync() > 0;
+    }
+
+    public async Task<bool> DeleteNoteAsync(Guid noteId)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand("DELETE FROM dbo.Notes WHERE Id = @Id;", connection);
+        command.Parameters.AddWithValue("@Id", noteId);
+
+        return await command.ExecuteNonQueryAsync() > 0;
+    }
+
     private async Task<SqlConnection> CreateOpenConnectionAsync()
     {
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -374,6 +446,16 @@ internal sealed class TripPlanningRepository : ITripPlanningRepository
         command.Parameters.AddWithValue("@IsCompleted", checklistItem.IsCompleted);
         command.Parameters.AddWithValue("@CreatedAt", checklistItem.CreatedAt);
         command.Parameters.AddWithValue("@UpdatedAt", ToDbValue(checklistItem.UpdatedAt));
+    }
+
+    private static void AddNoteParameters(SqlCommand command, NoteModel note)
+    {
+        command.Parameters.AddWithValue("@Id", note.Id);
+        command.Parameters.AddWithValue("@TripPlanId", note.TripPlanId);
+        command.Parameters.AddWithValue("@Title", note.Title);
+        command.Parameters.AddWithValue("@Content", ToDbValue(note.Content));
+        command.Parameters.AddWithValue("@CreatedAt", note.CreatedAt);
+        command.Parameters.AddWithValue("@UpdatedAt", ToDbValue(note.UpdatedAt));
     }
 
     private static TripPlanModel ReadTripPlan(SqlDataReader reader)
@@ -440,6 +522,19 @@ internal sealed class TripPlanningRepository : ITripPlanningRepository
         };
     }
 
+    private static NoteModel ReadNote(SqlDataReader reader)
+    {
+        return new NoteModel
+        {
+            Id = reader.GetGuid(0),
+            TripPlanId = reader.GetGuid(1),
+            Title = reader.GetString(2),
+            Content = reader.IsDBNull(3) ? null : reader.GetString(3),
+            CreatedAt = reader.GetDateTime(4),
+            UpdatedAt = reader.IsDBNull(5) ? null : reader.GetDateTime(5)
+        };
+    }
+
     private static object ToDbValue(object? value)
     {
         return value ?? DBNull.Value;
@@ -467,5 +562,11 @@ internal sealed class TripPlanningRepository : ITripPlanningRepository
         """
         SELECT Id, TripPlanId, Title, IsCompleted, CreatedAt, UpdatedAt
         FROM dbo.ChecklistItems
+        """;
+
+    private const string NoteSelectSql =
+        """
+        SELECT Id, TripPlanId, Title, Content, CreatedAt, UpdatedAt
+        FROM dbo.Notes
         """;
 }

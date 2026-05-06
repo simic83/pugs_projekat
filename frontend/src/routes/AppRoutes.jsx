@@ -1,4 +1,5 @@
 import { Route, Routes } from "react-router-dom";
+import { AppLayout } from "../components/AppLayout.jsx";
 import { LoginPage } from "../pages/LoginPage.jsx";
 import { RegisterPage } from "../pages/RegisterPage.jsx";
 import { SharedTripPlanPage } from "../pages/SharedTripPlanPage.jsx";
@@ -9,7 +10,9 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route element={<ProtectedRoute />}>
-        <Route path="/" element={<TripPlansPage />} />
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<TripPlansPage />} />
+        </Route>
       </Route>
       <Route path="/shared/:token" element={<SharedTripPlanPage />} />
       <Route path="/login" element={<LoginPage />} />

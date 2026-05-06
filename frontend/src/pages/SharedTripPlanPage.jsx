@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { sharingApi } from "../api/sharingApi.js";
+import { ActivityCalendar, buildActivityCalendarDays } from "../components/ActivityCalendar.jsx";
+import { EXPENSE_CATEGORIES } from "../models/budget.js";
 import { SHARE_ACCESS_LEVELS } from "../models/sharing.js";
 
 const emptyTripPlanForm = {
@@ -22,7 +24,7 @@ export function SharedTripPlanPage() {
 
   const loadSharedTripPlan = useCallback(async () => {
     if (!token) {
-      setError("Share token is missing.");
+      setError("Link nije validan, istekao je ili je opozvan.");
       setIsLoading(false);
       return;
     }
@@ -35,8 +37,9 @@ export function SharedTripPlanPage() {
       const data = await sharingApi.getSharedTripPlan(token);
       setSharedTripPlan(data);
       setTripPlanForm(toTripPlanForm(data?.tripPlan));
-    } catch (requestError) {
-      setError(requestError.message);
+    } catch {
+      setSharedTripPlan(null);
+      setError("Link nije validan, istekao je ili je opozvan.");
     } finally {
       setIsLoading(false);
     }
@@ -53,6 +56,30 @@ export function SharedTripPlanPage() {
       [name]: value,
     }));
   };
+
+  const tripPlan = sharedTripPlan?.tripPlan;
+  const destinations = sharedTripPlan?.destinations ?? [];
+  const activities = sharedTripPlan?.activities ?? [];
+  const expenses = sharedTripPlan?.expenses ?? [];
+  const budgetSummary = sharedTripPlan?.budgetSummary;
+  const checklistItems = sharedTripPlan?.checklistItems ?? [];
+  const noteItems = Array.isArray(sharedTripPlan?.notes) ? sharedTripPlan.notes : [];
+  const hasNotesSection = Array.isArray(sharedTripPlan?.notes);
+  const accessLevel = sharedTripPlan?.accessLevel ?? sharedTripPlan?.share?.accessLevel;
+  const canEdit = Number(accessLevel) === SHARE_ACCESS_LEVELS.EDIT;
+  const plannedBudget = budgetSummary?.plannedBudget ?? tripPlan?.plannedBudget ?? 0;
+  const totalExpenses = budgetSummary?.totalExpenses ?? expenses.reduce((total, expense) => total + Number(expense.amount ?? 0), 0);
+  const remainingBudget = budgetSummary?.remainingBudget ?? plannedBudget - totalExpenses;
+
+  const sortedDestinations = useMemo(
+    () => [...destinations].sort((first, second) => compareDates(first.arrivalDate, second.arrivalDate)),
+    [destinations],
+  );
+
+  const activityCalendarDays = useMemo(
+    () => buildActivityCalendarDays(tripPlan?.startDate, tripPlan?.endDate, activities),
+    [activities, tripPlan?.endDate, tripPlan?.startDate],
+  );
 
   const updateSharedTripPlan = async (event) => {
     event.preventDefault();
@@ -81,132 +108,287 @@ export function SharedTripPlanPage() {
     }
   };
 
-  const tripPlan = sharedTripPlan?.tripPlan;
-  const destinations = sharedTripPlan?.destinations ?? [];
-  const activities = sharedTripPlan?.activities ?? [];
-  const canEdit = Number(sharedTripPlan?.share?.accessLevel) === SHARE_ACCESS_LEVELS.EDIT;
-
   return (
-    <main style={styles.page}>
-      <header style={styles.header}>
-        <div>
-          <h1 style={styles.title}>{tripPlan?.title ?? "Shared trip plan"}</h1>
-          {tripPlan ? <p style={styles.subtitle}>{formatDateRange(tripPlan.startDate, tripPlan.endDate)}</p> : null}
-        </div>
-        <Link style={styles.secondaryButton} to="/login">
+    <div className="public-layout">
+      <header className="public-topbar">
+        <Link className="public-brand" to="/login">
+          <span className="brand-mark">TP</span>
+          <span className="brand-text">
+            <span className="brand-title">Travel Planner</span>
+            <span className="brand-subtitle">Deljeni plan putovanja</span>
+          </span>
+        </Link>
+        <Link className="btn btn-secondary" to="/login">
           Login
         </Link>
       </header>
 
-      {isLoading ? <p style={styles.muted}>Loading...</p> : null}
-      {error ? <p style={styles.error}>{error}</p> : null}
-      {message ? <p style={styles.success}>{message}</p> : null}
+      <main className="public-main page-stack">
+        {isLoading ? <div className="empty-state">Ucitavanje deljenog plana...</div> : null}
+        {error ? <p className="alert alert-error">{error}</p> : null}
+        {message ? <p className="alert alert-success">{message}</p> : null}
 
-      {tripPlan ? (
-        <section style={styles.layout}>
-          <section style={styles.panel}>
-            <h2 style={styles.sectionTitle}>Plan</h2>
-            {canEdit ? (
-              <form onSubmit={updateSharedTripPlan} style={styles.form}>
-                <input
-                  name="title"
-                  onChange={updateTripPlanField}
-                  required
-                  style={styles.input}
-                  value={tripPlanForm.title}
-                />
-                <textarea
-                  name="description"
-                  onChange={updateTripPlanField}
-                  placeholder="Description"
-                  rows={3}
-                  style={styles.input}
-                  value={tripPlanForm.description}
-                />
-                <div style={styles.twoColumns}>
-                  <input
-                    name="startDate"
-                    onChange={updateTripPlanField}
-                    required
-                    style={styles.input}
-                    type="date"
-                    value={tripPlanForm.startDate}
-                  />
-                  <input
-                    name="endDate"
-                    onChange={updateTripPlanField}
-                    required
-                    style={styles.input}
-                    type="date"
-                    value={tripPlanForm.endDate}
-                  />
-                </div>
-                <input
-                  min="0"
-                  name="plannedBudget"
-                  onChange={updateTripPlanField}
-                  step="0.01"
-                  style={styles.input}
-                  type="number"
-                  value={tripPlanForm.plannedBudget}
-                />
-                <textarea
-                  name="notes"
-                  onChange={updateTripPlanField}
-                  placeholder="Notes"
-                  rows={3}
-                  style={styles.input}
-                  value={tripPlanForm.notes}
-                />
-                <button style={styles.primaryButton} type="submit">
-                  Sacuvaj izmene
-                </button>
-              </form>
-            ) : (
-              <div style={styles.list}>
-                {tripPlan.description ? <p>{tripPlan.description}</p> : null}
-                {tripPlan.notes ? <p style={styles.note}>{tripPlan.notes}</p> : null}
-                <p style={styles.muted}>Planned budget: {formatMoney(tripPlan.plannedBudget)}</p>
+        {tripPlan ? (
+          <>
+            <header className="page-header">
+              <div>
+                <h1 className="page-title">{tripPlan.title}</h1>
+                <p className="page-subtitle">{formatDateRange(tripPlan.startDate, tripPlan.endDate)}</p>
               </div>
-            )}
-          </section>
+              <span className="badge">{canEdit ? "EDIT pristup" : "VIEW pristup"}</span>
+            </header>
 
-          <section style={styles.panel}>
-            <h2 style={styles.sectionTitle}>Destinations</h2>
-            <div style={styles.list}>
-              {destinations.map((destination) => (
-                <div key={destination.id} style={styles.rowItem}>
-                  <strong>{destination.name}</strong>
-                  <p style={styles.muted}>
-                    {destination.location ? `${destination.location} - ` : ""}
-                    {formatDateRange(destination.arrivalDate, destination.departureDate)}
-                  </p>
+            <section className="public-grid">
+              <div className="page-stack">
+                <section className="section-card">
+                <div className="section-header">
+                  <div>
+                    <h2 className="section-title">Osnovni podaci</h2>
+                    <p className="section-subtitle">
+                      {canEdit ? "Osnovni podaci se mogu izmeniti preko ovog linka." : "Link je samo za pregled."}
+                    </p>
+                  </div>
                 </div>
-              ))}
-              {destinations.length === 0 ? <p style={styles.muted}>No destinations.</p> : null}
-            </div>
-          </section>
 
-          <section style={styles.panel}>
-            <h2 style={styles.sectionTitle}>Activities</h2>
-            <div style={styles.list}>
-              {activities.map((activity) => (
-                <div key={activity.id} style={styles.rowItem}>
-                  <strong>{activity.title}</strong>
-                  <p style={styles.muted}>
-                    {formatDate(activity.activityDate)}
-                    {activity.activityTime ? ` ${String(activity.activityTime).slice(0, 5)}` : ""}
-                    {activity.location ? ` - ${activity.location}` : ""}
-                  </p>
-                  <p style={styles.muted}>{formatMoney(activity.estimatedCost)}</p>
-                </div>
-              ))}
-              {activities.length === 0 ? <p style={styles.muted}>No activities.</p> : null}
-            </div>
-          </section>
-        </section>
-      ) : null}
-    </main>
+                {canEdit ? (
+                  <form className="form-grid" onSubmit={updateSharedTripPlan}>
+                    <label className="field">
+                      <span className="field-label">Naziv plana</span>
+                      <input
+                        className="input"
+                        name="title"
+                        onChange={updateTripPlanField}
+                        required
+                        value={tripPlanForm.title}
+                      />
+                    </label>
+
+                    <label className="field">
+                      <span className="field-label">Opis</span>
+                      <textarea
+                        className="textarea"
+                        name="description"
+                        onChange={updateTripPlanField}
+                        rows={3}
+                        value={tripPlanForm.description}
+                      />
+                    </label>
+
+                    <div className="form-row">
+                      <label className="field">
+                        <span className="field-label">Pocetak</span>
+                        <input
+                          className="input"
+                          name="startDate"
+                          onChange={updateTripPlanField}
+                          required
+                          type="date"
+                          value={tripPlanForm.startDate}
+                        />
+                      </label>
+                      <label className="field">
+                        <span className="field-label">Kraj</span>
+                        <input
+                          className="input"
+                          name="endDate"
+                          onChange={updateTripPlanField}
+                          required
+                          type="date"
+                          value={tripPlanForm.endDate}
+                        />
+                      </label>
+                    </div>
+
+                    <label className="field">
+                      <span className="field-label">Planirani budzet</span>
+                      <input
+                        className="input"
+                        min="0"
+                        name="plannedBudget"
+                        onChange={updateTripPlanField}
+                        step="0.01"
+                        type="number"
+                        value={tripPlanForm.plannedBudget}
+                      />
+                    </label>
+
+                    <label className="field">
+                      <span className="field-label">Napomene</span>
+                      <textarea
+                        className="textarea"
+                        name="notes"
+                        onChange={updateTripPlanField}
+                        rows={3}
+                        value={tripPlanForm.notes}
+                      />
+                    </label>
+
+                    <button className="btn btn-primary" type="submit">
+                      Sacuvaj izmene
+                    </button>
+                  </form>
+                ) : (
+                  <div className="item-list">
+                    {tripPlan.description ? <p className="list-item-description">{tripPlan.description}</p> : null}
+                    {tripPlan.notes ? <p className="note-box">{tripPlan.notes}</p> : null}
+                    <div className="public-summary">
+                      <span className="stat-tile">
+                        <span className="stat-label">Planirani budzet</span>
+                        <span className="stat-value">{formatMoney(tripPlan.plannedBudget)}</span>
+                      </span>
+                      <span className="stat-tile">
+                        <span className="stat-label">Period</span>
+                        <span className="stat-value">{formatDateRange(tripPlan.startDate, tripPlan.endDate)}</span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+                <section className="section-card">
+                  <div className="section-header">
+                    <div>
+                      <h2 className="section-title">Troskovi i budzet</h2>
+                      <p className="section-subtitle">Planirani budzet, ukupni troskovi i preostali iznos.</p>
+                    </div>
+                    <span className="badge">{expenses.length}</span>
+                  </div>
+
+                  <div className="overview-grid">
+                    <span className="stat-tile">
+                      <span className="stat-label">Planirani budzet</span>
+                      <span className="stat-value">{formatMoney(plannedBudget)}</span>
+                    </span>
+                    <span className="stat-tile">
+                      <span className="stat-label">Ukupno potroseno</span>
+                      <span className="stat-value">{formatMoney(totalExpenses)}</span>
+                    </span>
+                    <span className="stat-tile">
+                      <span className="stat-label">Preostali budzet</span>
+                      <span className="stat-value">{formatMoney(remainingBudget)}</span>
+                    </span>
+                  </div>
+
+                  <div className="item-list">
+                    {expenses.map((expense) => (
+                      <article className="list-item" key={expense.id}>
+                        <div className="list-item-main">
+                          <span className="list-item-title">{expense.title}</span>
+                          <p className="muted">
+                            {getExpenseCategoryLabel(expense.category)} - {formatDate(expense.expenseDate)}
+                          </p>
+                          <p className="muted">{formatMoney(expense.amount)}</p>
+                          {expense.description ? <p className="list-item-description">{expense.description}</p> : null}
+                        </div>
+                      </article>
+                    ))}
+                    {expenses.length === 0 ? <div className="empty-state">Nema unetih troskova.</div> : null}
+                  </div>
+                </section>
+
+                <section className="section-card">
+                  <div className="section-header">
+                    <div>
+                      <h2 className="section-title">Checklist</h2>
+                      <p className="section-subtitle">Stavke za pripremu i njihov status.</p>
+                    </div>
+                    <span className="badge">{checklistItems.length}</span>
+                  </div>
+
+                  <div className="item-list">
+                    {checklistItems.map((checklistItem) => (
+                      <article className="list-item checklist-item" key={checklistItem.id}>
+                        <label className="checklist-label">
+                          <input checked={Boolean(checklistItem.isCompleted)} disabled readOnly type="checkbox" />
+                          <span className={`checklist-title${checklistItem.isCompleted ? " is-done" : ""}`}>
+                            {checklistItem.title}
+                          </span>
+                        </label>
+                        <span className={`badge${checklistItem.isCompleted ? " badge-success" : " badge-muted"}`}>
+                          {checklistItem.isCompleted ? "Zavrseno" : "Nije zavrseno"}
+                        </span>
+                      </article>
+                    ))}
+                    {checklistItems.length === 0 ? <div className="empty-state">Nema checklist stavki.</div> : null}
+                  </div>
+                </section>
+              </div>
+
+              <div className="page-stack">
+                <section className="section-card">
+                  <div className="section-header">
+                    <div>
+                      <h2 className="section-title">Destinacije</h2>
+                      <p className="section-subtitle">Mesta iz deljenog plana.</p>
+                    </div>
+                    <span className="badge">{destinations.length}</span>
+                  </div>
+
+                  <div className="item-list">
+                    {sortedDestinations.map((destination) => (
+                      <article className="list-item" key={destination.id}>
+                        <div className="list-item-main">
+                          <span className="list-item-title">{destination.name}</span>
+                          <p className="muted">
+                            {destination.location ? `${destination.location} - ` : ""}
+                            {formatDateRange(destination.arrivalDate, destination.departureDate)}
+                          </p>
+                          {destination.description ? (
+                            <p className="list-item-description">{destination.description}</p>
+                          ) : null}
+                        </div>
+                      </article>
+                    ))}
+                    {destinations.length === 0 ? <div className="empty-state">Nema destinacija za prikaz.</div> : null}
+                  </div>
+                </section>
+
+                <section className="section-card">
+                  <div className="section-header">
+                    <div>
+                      <h2 className="section-title">Aktivnosti</h2>
+                      <p className="section-subtitle">Kalendarski prikaz aktivnosti po danima.</p>
+                    </div>
+                    <span className="badge">{activities.length}</span>
+                  </div>
+
+                  <ActivityCalendar days={activityCalendarDays} />
+                </section>
+
+                {hasNotesSection ? (
+                  <section className="section-card">
+                    <div className="section-header">
+                      <div>
+                        <h2 className="section-title">Beleske</h2>
+                        <p className="section-subtitle">Notes stavke vezane za deljeni plan.</p>
+                      </div>
+                      <span className="badge">{noteItems.length}</span>
+                    </div>
+
+                    <div className="item-list">
+                      {noteItems.map((note) => (
+                        <article className="list-item" key={note.id}>
+                          <div className="list-item-main">
+                            <span className="list-item-title">{note.title}</span>
+                            <p className="muted">
+                              {note.updatedAt
+                                ? `Izmenjeno: ${formatDateTime(note.updatedAt)}`
+                                : `Kreirano: ${formatDateTime(note.createdAt)}`}
+                            </p>
+                            {note.content ? <p className="list-item-description">{note.content}</p> : null}
+                          </div>
+                        </article>
+                      ))}
+                      {noteItems.length === 0 ? <div className="empty-state">Nema beleski.</div> : null}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            </section>
+          </>
+        ) : null}
+      </main>
+    </div>
   );
 }
 
@@ -234,7 +416,14 @@ function toDateInputValue(value) {
 }
 
 function toDateTime(dateValue) {
-  return `${dateValue}T00:00:00`;
+  return dateValue ? `${dateValue}T00:00:00` : null;
+}
+
+function compareDates(firstValue, secondValue) {
+  const firstTime = firstValue ? new Date(firstValue).getTime() : Number.MAX_SAFE_INTEGER;
+  const secondTime = secondValue ? new Date(secondValue).getTime() : Number.MAX_SAFE_INTEGER;
+
+  return firstTime - secondTime;
 }
 
 function formatDate(value) {
@@ -245,8 +434,23 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString();
 }
 
+function formatDateTime(value) {
+  if (!value) {
+    return "";
+  }
+
+  return new Date(value).toLocaleString();
+}
+
 function formatDateRange(startDate, endDate) {
-  return `${formatDate(startDate)} - ${formatDate(endDate)}`;
+  const formattedStartDate = formatDate(startDate);
+  const formattedEndDate = formatDate(endDate);
+
+  if (formattedStartDate && formattedEndDate) {
+    return `${formattedStartDate} - ${formattedEndDate}`;
+  }
+
+  return formattedStartDate || formattedEndDate || "Bez datuma";
 }
 
 function formatMoney(value) {
@@ -256,122 +460,7 @@ function formatMoney(value) {
   });
 }
 
-const styles = {
-  page: {
-    minHeight: "100vh",
-    padding: "24px",
-    background: "#f7f7f8",
-    color: "#202027",
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "16px",
-    marginBottom: "18px",
-  },
-  title: {
-    margin: 0,
-    fontSize: "30px",
-  },
-  subtitle: {
-    margin: "4px 0 0",
-    color: "#60606b",
-  },
-  layout: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))",
-    gap: "18px",
-  },
-  panel: {
-    display: "grid",
-    alignContent: "start",
-    gap: "14px",
-    padding: "18px",
-    border: "1px solid #dedee3",
-    borderRadius: "8px",
-    background: "#ffffff",
-  },
-  sectionTitle: {
-    margin: 0,
-    fontSize: "18px",
-  },
-  form: {
-    display: "grid",
-    gap: "10px",
-  },
-  twoColumns: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 160px), 1fr))",
-    gap: "10px",
-  },
-  input: {
-    width: "100%",
-    minHeight: "38px",
-    boxSizing: "border-box",
-    padding: "8px 10px",
-    border: "1px solid #c9c9d1",
-    borderRadius: "6px",
-    font: "inherit",
-  },
-  primaryButton: {
-    minHeight: "40px",
-    padding: "0 14px",
-    border: 0,
-    borderRadius: "6px",
-    background: "#1769aa",
-    color: "#ffffff",
-    cursor: "pointer",
-    font: "inherit",
-    fontWeight: 700,
-  },
-  secondaryButton: {
-    minHeight: "38px",
-    boxSizing: "border-box",
-    padding: "8px 14px",
-    border: "1px solid #b9bbc6",
-    borderRadius: "6px",
-    background: "#ffffff",
-    color: "#202027",
-    cursor: "pointer",
-    font: "inherit",
-    textDecoration: "none",
-  },
-  list: {
-    display: "grid",
-    gap: "10px",
-  },
-  rowItem: {
-    display: "grid",
-    gap: "4px",
-    padding: "12px",
-    border: "1px solid #dedee3",
-    borderRadius: "6px",
-  },
-  note: {
-    padding: "10px",
-    borderRadius: "6px",
-    background: "#f3f4f6",
-  },
-  muted: {
-    margin: 0,
-    color: "#60606b",
-    fontSize: "14px",
-  },
-  error: {
-    margin: "0 0 16px",
-    padding: "10px 12px",
-    border: "1px solid #f0b8b2",
-    borderRadius: "6px",
-    background: "#fff5f4",
-    color: "#b42318",
-  },
-  success: {
-    margin: "0 0 16px",
-    padding: "10px 12px",
-    border: "1px solid #b7d7ee",
-    borderRadius: "6px",
-    background: "#eef6fd",
-    color: "#1769aa",
-  },
-};
+function getExpenseCategoryLabel(value) {
+  const numericValue = Number(value);
+  return EXPENSE_CATEGORIES.find((category) => category.value === numericValue)?.label ?? "Other";
+}

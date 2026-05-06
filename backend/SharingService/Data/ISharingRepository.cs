@@ -21,4 +21,12 @@ internal interface ISharingRepository
     Task<List<DestinationModel>> GetDestinationsByTripPlanIdAsync(Guid tripPlanId);
 
     Task<List<ActivityModel>> GetActivitiesByTripPlanIdAsync(Guid tripPlanId);
+
+    Task<List<ExpenseModel>> GetExpensesByTripPlanIdAsync(Guid tripPlanId);
+
+    Task<decimal> GetTotalExpensesByTripPlanIdAsync(Guid tripPlanId);
+
+    Task<List<ChecklistItemModel>> GetChecklistItemsByTripPlanIdAsync(Guid tripPlanId);
+
+    Task<List<NoteModel>> GetNotesByTripPlanIdAsync(Guid tripPlanId);
 }
