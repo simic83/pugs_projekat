@@ -16,5 +16,5 @@ public sealed class CreateShareRequestDto
     public ShareAccessLevel AccessLevel { get; set; }
 
     [DataMember(Order = 4)]
-    public DateTime? ExpiresAtUtc { get; set; }
+    public DateTime? ExpiresAt { get; set; }
 }

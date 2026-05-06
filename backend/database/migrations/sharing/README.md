@@ -1,3 +1,5 @@
 # Sharing Migrations
 
-Sharing schema migrations will be added when share token persistence is implemented.
+Ovaj folder sadrzi migracije za deljenje planova putovanja.
+
+- `001_create_share_tokens.sql` kreira tabelu `ShareTokens` za VIEW/EDIT share tokene.

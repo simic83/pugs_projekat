@@ -3,9 +3,11 @@ import { activitiesApi } from "../api/activitiesApi.js";
 import { budgetApi } from "../api/budgetApi.js";
 import { checklistApi } from "../api/checklistApi.js";
 import { destinationsApi } from "../api/destinationsApi.js";
+import { sharingApi } from "../api/sharingApi.js";
 import { tripPlansApi } from "../api/tripPlansApi.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { EXPENSE_CATEGORIES } from "../models/budget.js";
+import { SHARE_ACCESS_LEVEL_OPTIONS, SHARE_ACCESS_LEVELS } from "../models/sharing.js";
 
 const emptyTripPlanForm = {
   title: "",
@@ -62,12 +64,16 @@ export function TripPlansPage() {
   const [activities, setActivities] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [checklistItems, setChecklistItems] = useState([]);
+  const [shares, setShares] = useState([]);
   const [budgetSummary, setBudgetSummary] = useState(null);
   const [tripPlanForm, setTripPlanForm] = useState(emptyTripPlanForm);
   const [destinationForm, setDestinationForm] = useState(emptyDestinationForm);
   const [activityForm, setActivityForm] = useState(emptyActivityForm);
   const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
   const [checklistForm, setChecklistForm] = useState(emptyChecklistForm);
+  const [shareAccessLevel, setShareAccessLevel] = useState(SHARE_ACCESS_LEVELS.VIEW);
+  const [shareExpiresAt, setShareExpiresAt] = useState("");
+  const [generatedShareLink, setGeneratedShareLink] = useState("");
   const [editingExpenseId, setEditingExpenseId] = useState(null);
   const [editingChecklistItemId, setEditingChecklistItemId] = useState(null);
   const [error, setError] = useState("");
@@ -95,18 +101,20 @@ export function TripPlansPage() {
       setActivities([]);
       setExpenses([]);
       setChecklistItems([]);
+      setShares([]);
       setBudgetSummary(null);
       setEditingExpenseId(null);
       setEditingChecklistItemId(null);
       setExpenseForm(emptyExpenseForm);
       setChecklistForm(emptyChecklistForm);
+      setGeneratedShareLink("");
       return;
     }
 
     setError("");
 
     try {
-      const [tripPlan, tripDestinations, tripActivities, tripExpenses, tripBudgetSummary, tripChecklistItems] =
+      const [tripPlan, tripDestinations, tripActivities, tripExpenses, tripBudgetSummary, tripChecklistItems, tripShares] =
         await Promise.all([
           tripPlansApi.getById(tripPlanId),
           destinationsApi.getByTripPlanId(tripPlanId),
@@ -114,6 +122,7 @@ export function TripPlansPage() {
           budgetApi.getExpenses(tripPlanId),
           budgetApi.getBudgetSummary(tripPlanId),
           checklistApi.getChecklistItems(tripPlanId),
+          sharingApi.getShares(tripPlanId),
         ]);
 
       setSelectedTripPlan(tripPlan);
@@ -122,6 +131,7 @@ export function TripPlansPage() {
       setExpenses(tripExpenses ?? []);
       setBudgetSummary(tripBudgetSummary);
       setChecklistItems(tripChecklistItems ?? []);
+      setShares(tripShares ?? []);
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -186,9 +196,11 @@ export function TripPlansPage() {
       setSelectedTripPlan(null);
       setExpenses([]);
       setChecklistItems([]);
+      setShares([]);
       setBudgetSummary(null);
       setEditingChecklistItemId(null);
       setChecklistForm(emptyChecklistForm);
+      setGeneratedShareLink("");
       await loadTripPlans();
     } catch (requestError) {
       setError(requestError.message);
@@ -270,6 +282,46 @@ export function TripPlansPage() {
     try {
       await activitiesApi.remove(selectedTripPlanId, activityId);
       await loadTripPlanDetails(selectedTripPlanId);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
+
+  const createShare = async (event) => {
+    event.preventDefault();
+    if (!selectedTripPlanId) {
+      return;
+    }
+
+    setError("");
+
+    try {
+      const created = await sharingApi.createShare(selectedTripPlanId, {
+        accessLevel: Number(shareAccessLevel),
+        expiresAt: shareExpiresAt ? toExpirationDateTime(shareExpiresAt) : null,
+      });
+
+      setShareExpiresAt("");
+      setGeneratedShareLink(buildSharedTripPlanLink(created.token));
+      const tripShares = await sharingApi.getShares(selectedTripPlanId);
+      setShares(tripShares ?? []);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
+
+  const revokeShare = async (shareId) => {
+    if (!selectedTripPlanId) {
+      return;
+    }
+
+    setError("");
+
+    try {
+      await sharingApi.revokeShare(selectedTripPlanId, shareId);
+      setGeneratedShareLink("");
+      const tripShares = await sharingApi.getShares(selectedTripPlanId);
+      setShares(tripShares ?? []);
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -558,6 +610,79 @@ export function TripPlansPage() {
                   <strong>{formatMoney(budgetSummary?.remainingBudget ?? selectedTripPlan.plannedBudget)}</strong>
                 </p>
               </div>
+
+              <section style={styles.sharingSection}>
+                <form onSubmit={createShare} style={styles.inlineForm}>
+                  <h3 style={styles.sectionTitle}>Sharing</h3>
+                  <select
+                    onChange={(event) => setShareAccessLevel(Number(event.target.value))}
+                    style={styles.input}
+                    value={shareAccessLevel}
+                  >
+                    {SHARE_ACCESS_LEVEL_OPTIONS.map((accessLevel) => (
+                      <option key={accessLevel.value} value={accessLevel.value}>
+                        {accessLevel.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    aria-label="Datum isteka"
+                    min={new Date().toISOString().slice(0, 10)}
+                    onChange={(event) => setShareExpiresAt(event.target.value)}
+                    style={styles.input}
+                    type="date"
+                    value={shareExpiresAt}
+                  />
+                  <button style={styles.primaryButton} type="submit">
+                    Kreiraj link
+                  </button>
+                </form>
+
+                {generatedShareLink ? (
+                  <p style={styles.generatedLink}>
+                    Novi link:{" "}
+                    <a href={generatedShareLink} rel="noreferrer" style={styles.link} target="_blank">
+                      {generatedShareLink}
+                    </a>
+                  </p>
+                ) : null}
+
+                <div style={styles.list}>
+                  {shares.map((share) => {
+                    const shareLink = buildSharedTripPlanLink(share.token);
+
+                    return (
+                      <div key={share.id} style={styles.rowItem}>
+                        <div>
+                          <strong>{getShareAccessLevelLabel(share.accessLevel)}</strong>
+                          <p style={styles.shareToken}>{share.token}</p>
+                          <p style={styles.muted}>
+                            {share.isRevoked ? "Revoked" : "Active"} - created {formatDateTime(share.createdAt)}
+                          </p>
+                          {share.expiresAt ? (
+                            <p style={styles.muted}>Expires {formatDateTime(share.expiresAt)}</p>
+                          ) : null}
+                          {!share.isRevoked ? (
+                            <a href={shareLink} rel="noreferrer" style={styles.link} target="_blank">
+                              {shareLink}
+                            </a>
+                          ) : null}
+                        </div>
+                        {!share.isRevoked ? (
+                          <button
+                            onClick={() => revokeShare(share.id)}
+                            style={styles.smallDangerButton}
+                            type="button"
+                          >
+                            Opozovi
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                  {shares.length === 0 ? <p style={styles.muted}>No share tokens.</p> : null}
+                </div>
+              </section>
 
               <div style={styles.detailGrid}>
                 <section style={styles.subsection}>
@@ -900,12 +1025,24 @@ function toDateTime(dateValue) {
   return `${dateValue}T00:00:00`;
 }
 
+function toExpirationDateTime(dateValue) {
+  return `${dateValue}T23:59:59`;
+}
+
 function formatDate(value) {
   if (!value) {
     return "";
   }
 
   return new Date(value).toLocaleDateString();
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "";
+  }
+
+  return new Date(value).toLocaleString();
 }
 
 function toDateInputValue(value) {
@@ -935,6 +1072,14 @@ function getStatusLabel(value) {
 function getExpenseCategoryLabel(value) {
   const numericValue = Number(value);
   return EXPENSE_CATEGORIES.find((category) => category.value === numericValue)?.label ?? "Other";
+}
+
+function getShareAccessLevelLabel(value) {
+  return Number(value) === SHARE_ACCESS_LEVELS.EDIT ? "EDIT" : "VIEW";
+}
+
+function buildSharedTripPlanLink(token) {
+  return `${window.location.origin}/shared/${token}`;
 }
 
 const styles = {
@@ -1153,6 +1298,35 @@ const styles = {
     border: "1px solid #dedee3",
     borderRadius: "6px",
     color: "#60606b",
+  },
+  sharingSection: {
+    display: "grid",
+    gap: "12px",
+    paddingTop: "4px",
+  },
+  inlineForm: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 150px), 1fr))",
+    gap: "10px",
+    alignItems: "center",
+  },
+  generatedLink: {
+    margin: 0,
+    padding: "10px",
+    border: "1px solid #b7d7ee",
+    borderRadius: "6px",
+    background: "#eef6fd",
+    overflowWrap: "anywhere",
+  },
+  shareToken: {
+    margin: "4px 0",
+    color: "#60606b",
+    fontSize: "13px",
+    overflowWrap: "anywhere",
+  },
+  link: {
+    color: "#1769aa",
+    overflowWrap: "anywhere",
   },
   error: {
     margin: "0 0 16px",

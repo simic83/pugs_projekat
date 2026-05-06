@@ -7,17 +7,26 @@ namespace TravelPlanner.Contracts.Sharing;
 public sealed class ShareTokenDto
 {
     [DataMember(Order = 1)]
-    public string Token { get; set; } = string.Empty;
+    public Guid Id { get; set; }
 
     [DataMember(Order = 2)]
     public Guid TripPlanId { get; set; }
 
     [DataMember(Order = 3)]
-    public ShareAccessLevel AccessLevel { get; set; }
+    public string Token { get; set; } = string.Empty;
 
     [DataMember(Order = 4)]
-    public DateTime CreatedAtUtc { get; set; }
+    public ShareAccessLevel AccessLevel { get; set; }
 
     [DataMember(Order = 5)]
-    public DateTime? ExpiresAtUtc { get; set; }
+    public Guid CreatedByUserId { get; set; }
+
+    [DataMember(Order = 6)]
+    public DateTime CreatedAt { get; set; }
+
+    [DataMember(Order = 7)]
+    public DateTime? ExpiresAt { get; set; }
+
+    [DataMember(Order = 8)]
+    public bool IsRevoked { get; set; }
 }
