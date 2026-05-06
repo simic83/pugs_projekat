@@ -14,6 +14,7 @@ using TravelPlanner.Contracts.Destinations;
 using TravelPlanner.Contracts.Enums;
 using TravelPlanner.Contracts.Interfaces;
 using TravelPlanner.Contracts.Notes;
+using TravelPlanner.Contracts.Reminders;
 using TravelPlanner.Contracts.Sharing;
 using TravelPlanner.Contracts.Trips;
 
@@ -75,7 +76,7 @@ namespace SharingService
         {
             try
             {
-                var shareToken = await GetActiveShareTokenAsync(token);
+                var shareToken = await ValidateShareTokenForViewAsync(token);
                 return shareToken is null ? null : ToDto(shareToken);
             }
             catch (Exception exception) when (exception is InvalidOperationException or SqlException)
@@ -137,7 +138,7 @@ namespace SharingService
         {
             try
             {
-                var shareToken = await GetActiveShareTokenAsync(token);
+                var shareToken = await ValidateShareTokenForViewAsync(token);
                 return shareToken is null ? null : await BuildSharedTripPlanAsync(shareToken);
             }
             catch (Exception exception) when (exception is InvalidOperationException or SqlException)
@@ -156,8 +157,8 @@ namespace SharingService
 
             try
             {
-                var shareToken = await GetActiveShareTokenAsync(token);
-                if (shareToken is null || ParseAccessLevel(shareToken.AccessLevel) != ShareAccessLevel.Edit)
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null)
                 {
                     return null;
                 }
@@ -186,7 +187,515 @@ namespace SharingService
             }
         }
 
-        private async Task<ShareTokenModel?> GetActiveShareTokenAsync(string token)
+        public async Task<DestinationDto?> CreateSharedDestinationAsync(string token, CreateDestinationRequestDto request)
+        {
+            if (!IsValidDestination(request.Name, request.ArrivalDate, request.DepartureDate))
+            {
+                return null;
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null || await repository.GetTripPlanByIdAsync(shareToken.TripPlanId) is null)
+                {
+                    return null;
+                }
+
+                var destination = new DestinationModel
+                {
+                    Id = Guid.NewGuid(),
+                    TripPlanId = shareToken.TripPlanId,
+                    Name = request.Name.Trim(),
+                    Location = NormalizeOptionalText(request.Location),
+                    ArrivalDate = request.ArrivalDate.Date,
+                    DepartureDate = request.DepartureDate.Date,
+                    Description = NormalizeOptionalText(request.Description),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var created = await repository.CreateDestinationAsync(destination);
+                return ToDto(created);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared destination create failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<DestinationDto?> UpdateSharedDestinationAsync(
+            string token,
+            Guid destinationId,
+            UpdateDestinationRequestDto request)
+        {
+            if (destinationId == Guid.Empty || !IsValidDestination(request.Name, request.ArrivalDate, request.DepartureDate))
+            {
+                return null;
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null)
+                {
+                    return null;
+                }
+
+                var destination = await repository.GetDestinationByIdForTripPlanAsync(shareToken.TripPlanId, destinationId);
+                if (destination is null)
+                {
+                    return null;
+                }
+
+                destination.Name = request.Name.Trim();
+                destination.Location = NormalizeOptionalText(request.Location);
+                destination.ArrivalDate = request.ArrivalDate.Date;
+                destination.DepartureDate = request.DepartureDate.Date;
+                destination.Description = NormalizeOptionalText(request.Description);
+                destination.UpdatedAt = DateTime.UtcNow;
+
+                var updated = await repository.UpdateDestinationAsync(destination);
+                return updated ? ToDto(destination) : null;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared destination update failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteSharedDestinationAsync(string token, Guid destinationId)
+        {
+            if (destinationId == Guid.Empty)
+            {
+                return Failure("Destination was not found.");
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null)
+                {
+                    return Failure("Share token does not allow editing.");
+                }
+
+                var deleted = await repository.DeleteDestinationAsync(shareToken.TripPlanId, destinationId);
+                return deleted ? Success("Destination deleted.") : Failure("Destination was not found.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared destination delete failed", exception);
+                return Failure(exception.Message);
+            }
+        }
+
+        public async Task<ActivityDto?> CreateSharedActivityAsync(string token, CreateActivityRequestDto request)
+        {
+            if (!IsValidActivity(request.Title, request.EstimatedCost, request.Status))
+            {
+                return null;
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null || await repository.GetTripPlanByIdAsync(shareToken.TripPlanId) is null)
+                {
+                    return null;
+                }
+
+                var activity = new ActivityModel
+                {
+                    Id = Guid.NewGuid(),
+                    TripPlanId = shareToken.TripPlanId,
+                    Title = request.Title.Trim(),
+                    ActivityDate = request.ActivityDate.Date,
+                    ActivityTime = request.ActivityTime,
+                    Location = NormalizeOptionalText(request.Location),
+                    Description = NormalizeOptionalText(request.Description),
+                    EstimatedCost = request.EstimatedCost,
+                    Status = request.Status.ToString(),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var created = await repository.CreateActivityAsync(activity);
+                return ToDto(created);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared activity create failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<ActivityDto?> UpdateSharedActivityAsync(
+            string token,
+            Guid activityId,
+            UpdateActivityRequestDto request)
+        {
+            if (activityId == Guid.Empty || !IsValidActivity(request.Title, request.EstimatedCost, request.Status))
+            {
+                return null;
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null)
+                {
+                    return null;
+                }
+
+                var activity = await repository.GetActivityByIdForTripPlanAsync(shareToken.TripPlanId, activityId);
+                if (activity is null)
+                {
+                    return null;
+                }
+
+                activity.Title = request.Title.Trim();
+                activity.ActivityDate = request.ActivityDate.Date;
+                activity.ActivityTime = request.ActivityTime;
+                activity.Location = NormalizeOptionalText(request.Location);
+                activity.Description = NormalizeOptionalText(request.Description);
+                activity.EstimatedCost = request.EstimatedCost;
+                activity.Status = request.Status.ToString();
+                activity.UpdatedAt = DateTime.UtcNow;
+
+                var updated = await repository.UpdateActivityAsync(activity);
+                return updated ? ToDto(activity) : null;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared activity update failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteSharedActivityAsync(string token, Guid activityId)
+        {
+            if (activityId == Guid.Empty)
+            {
+                return Failure("Activity was not found.");
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null)
+                {
+                    return Failure("Share token does not allow editing.");
+                }
+
+                var deleted = await repository.DeleteActivityAsync(shareToken.TripPlanId, activityId);
+                return deleted ? Success("Activity deleted.") : Failure("Activity was not found.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared activity delete failed", exception);
+                return Failure(exception.Message);
+            }
+        }
+
+        public async Task<ExpenseDto?> CreateSharedExpenseAsync(string token, CreateExpenseRequestDto request)
+        {
+            if (!IsValidExpense(request.Title, request.Category, request.Amount, request.ExpenseDate))
+            {
+                return null;
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null || await repository.GetTripPlanByIdAsync(shareToken.TripPlanId) is null)
+                {
+                    return null;
+                }
+
+                var expense = new ExpenseModel
+                {
+                    Id = Guid.NewGuid(),
+                    TripPlanId = shareToken.TripPlanId,
+                    Title = request.Title.Trim(),
+                    Category = request.Category.GetValueOrDefault().ToString(),
+                    Amount = request.Amount,
+                    ExpenseDate = request.ExpenseDate.Date,
+                    Description = NormalizeOptionalText(request.Description),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var created = await repository.CreateExpenseAsync(expense);
+                return ToDto(created);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared expense create failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<ExpenseDto?> UpdateSharedExpenseAsync(
+            string token,
+            Guid expenseId,
+            UpdateExpenseRequestDto request)
+        {
+            if (expenseId == Guid.Empty || !IsValidExpense(request.Title, request.Category, request.Amount, request.ExpenseDate))
+            {
+                return null;
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null)
+                {
+                    return null;
+                }
+
+                var expense = await repository.GetExpenseByIdForTripPlanAsync(shareToken.TripPlanId, expenseId);
+                if (expense is null)
+                {
+                    return null;
+                }
+
+                expense.Title = request.Title.Trim();
+                expense.Category = request.Category.GetValueOrDefault().ToString();
+                expense.Amount = request.Amount;
+                expense.ExpenseDate = request.ExpenseDate.Date;
+                expense.Description = NormalizeOptionalText(request.Description);
+                expense.UpdatedAt = DateTime.UtcNow;
+
+                var updated = await repository.UpdateExpenseAsync(expense);
+                return updated ? ToDto(expense) : null;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared expense update failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteSharedExpenseAsync(string token, Guid expenseId)
+        {
+            if (expenseId == Guid.Empty)
+            {
+                return Failure("Expense was not found.");
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null)
+                {
+                    return Failure("Share token does not allow editing.");
+                }
+
+                var deleted = await repository.DeleteExpenseAsync(shareToken.TripPlanId, expenseId);
+                return deleted ? Success("Expense deleted.") : Failure("Expense was not found.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared expense delete failed", exception);
+                return Failure(exception.Message);
+            }
+        }
+
+        public async Task<ChecklistItemDto?> CreateSharedChecklistItemAsync(
+            string token,
+            CreateChecklistItemRequestDto request)
+        {
+            if (!IsValidChecklistTitle(request.Title))
+            {
+                return null;
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null || await repository.GetTripPlanByIdAsync(shareToken.TripPlanId) is null)
+                {
+                    return null;
+                }
+
+                var checklistItem = new ChecklistItemModel
+                {
+                    Id = Guid.NewGuid(),
+                    TripPlanId = shareToken.TripPlanId,
+                    Title = request.Title.Trim(),
+                    IsCompleted = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var created = await repository.CreateChecklistItemAsync(checklistItem);
+                return ToDto(created);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared checklist item create failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<ChecklistItemDto?> UpdateSharedChecklistItemAsync(
+            string token,
+            Guid checklistItemId,
+            UpdateChecklistItemRequestDto request)
+        {
+            if (checklistItemId == Guid.Empty || !IsValidChecklistTitle(request.Title))
+            {
+                return null;
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null)
+                {
+                    return null;
+                }
+
+                var checklistItem = await repository.GetChecklistItemByIdForTripPlanAsync(
+                    shareToken.TripPlanId,
+                    checklistItemId);
+                if (checklistItem is null)
+                {
+                    return null;
+                }
+
+                checklistItem.Title = request.Title.Trim();
+                checklistItem.IsCompleted = request.IsCompleted;
+                checklistItem.UpdatedAt = DateTime.UtcNow;
+
+                var updated = await repository.UpdateChecklistItemAsync(checklistItem);
+                return updated ? ToDto(checklistItem) : null;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared checklist item update failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteSharedChecklistItemAsync(string token, Guid checklistItemId)
+        {
+            if (checklistItemId == Guid.Empty)
+            {
+                return Failure("Checklist item was not found.");
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null)
+                {
+                    return Failure("Share token does not allow editing.");
+                }
+
+                var deleted = await repository.DeleteChecklistItemAsync(shareToken.TripPlanId, checklistItemId);
+                return deleted ? Success("Checklist item deleted.") : Failure("Checklist item was not found.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared checklist item delete failed", exception);
+                return Failure(exception.Message);
+            }
+        }
+
+        public async Task<NoteDto?> CreateSharedNoteAsync(string token, CreateNoteRequestDto request)
+        {
+            if (!IsValidNoteTitle(request.Title))
+            {
+                return null;
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null || await repository.GetTripPlanByIdAsync(shareToken.TripPlanId) is null)
+                {
+                    return null;
+                }
+
+                var note = new NoteModel
+                {
+                    Id = Guid.NewGuid(),
+                    TripPlanId = shareToken.TripPlanId,
+                    Title = request.Title.Trim(),
+                    Content = NormalizeOptionalText(request.Content),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var created = await repository.CreateNoteAsync(note);
+                return ToDto(created);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared note create failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<NoteDto?> UpdateSharedNoteAsync(string token, Guid noteId, UpdateNoteRequestDto request)
+        {
+            if (noteId == Guid.Empty || !IsValidNoteTitle(request.Title))
+            {
+                return null;
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null)
+                {
+                    return null;
+                }
+
+                var note = await repository.GetNoteByIdForTripPlanAsync(shareToken.TripPlanId, noteId);
+                if (note is null)
+                {
+                    return null;
+                }
+
+                note.Title = request.Title.Trim();
+                note.Content = NormalizeOptionalText(request.Content);
+                note.UpdatedAt = DateTime.UtcNow;
+
+                var updated = await repository.UpdateNoteAsync(note);
+                return updated ? ToDto(note) : null;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared note update failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteSharedNoteAsync(string token, Guid noteId)
+        {
+            if (noteId == Guid.Empty)
+            {
+                return Failure("Note was not found.");
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null)
+                {
+                    return Failure("Share token does not allow editing.");
+                }
+
+                var deleted = await repository.DeleteNoteAsync(shareToken.TripPlanId, noteId);
+                return deleted ? Success("Note deleted.") : Failure("Note was not found.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared note delete failed", exception);
+                return Failure(exception.Message);
+            }
+        }
+
+        private async Task<ShareTokenModel?> ValidateShareTokenForViewAsync(string token)
         {
             if (string.IsNullOrWhiteSpace(token))
             {
@@ -212,6 +721,14 @@ namespace SharingService
             return shareToken;
         }
 
+        private async Task<ShareTokenModel?> ValidateShareTokenForEditAsync(string token)
+        {
+            var shareToken = await ValidateShareTokenForViewAsync(token);
+            return shareToken is not null && ParseAccessLevel(shareToken.AccessLevel) == ShareAccessLevel.Edit
+                ? shareToken
+                : null;
+        }
+
         private async Task<SharedTripPlanDto?> BuildSharedTripPlanAsync(ShareTokenModel shareToken)
         {
             var tripPlan = await repository.GetTripPlanByIdAsync(shareToken.TripPlanId);
@@ -226,6 +743,7 @@ namespace SharingService
             var totalExpenses = await repository.GetTotalExpensesByTripPlanIdAsync(shareToken.TripPlanId);
             var checklistItems = await repository.GetChecklistItemsByTripPlanIdAsync(shareToken.TripPlanId);
             var notes = await repository.GetNotesByTripPlanIdAsync(shareToken.TripPlanId);
+            var reminders = await repository.GetRemindersForTripPlanAsync(shareToken.TripPlanId);
             var accessLevel = ParseAccessLevel(shareToken.AccessLevel);
 
             return new SharedTripPlanDto
@@ -244,7 +762,8 @@ namespace SharingService
                     RemainingBudget = tripPlan.PlannedBudget - totalExpenses
                 },
                 ChecklistItems = checklistItems.Select(ToDto).ToList(),
-                Notes = notes.Select(ToDto).ToList()
+                Notes = notes.Select(ToDto).ToList(),
+                Reminders = reminders.Select(ToDto).ToList()
             };
         }
 
@@ -261,6 +780,44 @@ namespace SharingService
             return !string.IsNullOrWhiteSpace(title)
                 && endDate.Date >= startDate.Date
                 && plannedBudget >= 0;
+        }
+
+        private static bool IsValidDestination(string name, DateTime arrivalDate, DateTime departureDate)
+        {
+            return !string.IsNullOrWhiteSpace(name)
+                && departureDate.Date >= arrivalDate.Date;
+        }
+
+        private static bool IsValidActivity(string title, decimal estimatedCost, ActivityStatus status)
+        {
+            return !string.IsNullOrWhiteSpace(title)
+                && estimatedCost >= 0
+                && Enum.IsDefined(typeof(ActivityStatus), status);
+        }
+
+        private static bool IsValidExpense(
+            string title,
+            ExpenseCategory? category,
+            decimal amount,
+            DateTime expenseDate)
+        {
+            return !string.IsNullOrWhiteSpace(title)
+                && category.HasValue
+                && Enum.IsDefined(typeof(ExpenseCategory), category.Value)
+                && amount >= 0
+                && expenseDate != default;
+        }
+
+        private static bool IsValidChecklistTitle(string title)
+        {
+            return !string.IsNullOrWhiteSpace(title)
+                && title.Trim().Length <= 150;
+        }
+
+        private static bool IsValidNoteTitle(string title)
+        {
+            return !string.IsNullOrWhiteSpace(title)
+                && title.Trim().Length <= 150;
         }
 
         private static string? NormalizeOptionalText(string? value)
@@ -391,6 +948,21 @@ namespace SharingService
                 Content = note.Content,
                 CreatedAt = note.CreatedAt,
                 UpdatedAt = note.UpdatedAt
+            };
+        }
+
+        private static ReminderDto ToDto(ReminderModel reminder)
+        {
+            return new ReminderDto
+            {
+                Id = reminder.Id,
+                TripPlanId = reminder.TripPlanId,
+                Title = reminder.Title,
+                Description = reminder.Description,
+                ReminderAt = reminder.ReminderAt,
+                IsCompleted = reminder.IsCompleted,
+                CreatedAt = reminder.CreatedAt,
+                UpdatedAt = reminder.UpdatedAt
             };
         }
 

@@ -39,7 +39,7 @@ export async function apiRequest(resourcePath, options = {}) {
   const data = await readJsonResponse(response);
 
   if (!response.ok) {
-    const error = new Error(data?.title ?? response.statusText);
+    const error = new Error(data?.message ?? data?.title ?? response.statusText);
     error.status = response.status;
     error.details = data;
     throw error;

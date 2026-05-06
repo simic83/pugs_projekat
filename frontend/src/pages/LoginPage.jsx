@@ -1,6 +1,9 @@
+import { LogIn, Plane } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { FormFieldError } from "../components/trips/FormFieldError.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { hasValidationErrors, validateLogin } from "../utils/validation.js";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -8,27 +11,41 @@ export function LoginPage() {
   const location = useLocation();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const redirectTo = location.state?.from?.pathname ?? "/";
 
   const updateField = (event) => {
+    const { name, value } = event.target;
     setForm((currentForm) => ({
       ...currentForm,
-      [event.target.name]: event.target.value,
+      [name]: value,
+    }));
+    setErrors((currentErrors) => ({
+      ...currentErrors,
+      [name]: "",
     }));
   };
 
   const submit = async (event) => {
     event.preventDefault();
     setError("");
+
+    const validationErrors = validateLogin(form);
+    if (hasValidationErrors(validationErrors)) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setErrors({});
     setIsSubmitting(true);
 
     try {
       await login(form);
       navigate(redirectTo, { replace: true });
     } catch (requestError) {
-      setError(requestError.message);
+      setError(requestError.message || "Doslo je do greske.");
     } finally {
       setIsSubmitting(false);
     }
@@ -36,9 +53,11 @@ export function LoginPage() {
 
   return (
     <main className="auth-page">
-      <form className="auth-card" onSubmit={submit}>
+      <form className="auth-card" noValidate onSubmit={submit}>
         <div className="auth-heading">
-          <span className="brand-mark">TP</span>
+          <span className="brand-mark" aria-hidden="true">
+            <Plane />
+          </span>
           <h1 className="auth-title">Login</h1>
           <p className="auth-subtitle">Prijavi se i nastavi sa planiranjem putovanja.</p>
         </div>
@@ -47,32 +66,34 @@ export function LoginPage() {
           <span className="field-label">Email</span>
           <input
             autoComplete="email"
-            className="input"
+            className={`input${errors.email ? " input-error" : ""}`}
             name="email"
             onChange={updateField}
             required
             type="email"
             value={form.email}
           />
+          <FormFieldError message={errors.email} />
         </label>
 
         <label className="field">
           <span className="field-label">Lozinka</span>
           <input
             autoComplete="current-password"
-            className="input"
-            minLength={8}
+            className={`input${errors.password ? " input-error" : ""}`}
             name="password"
             onChange={updateField}
             required
             type="password"
             value={form.password}
           />
+          <FormFieldError message={errors.password} />
         </label>
 
         {error ? <p className="alert alert-error">{error}</p> : null}
 
         <button className="btn btn-primary" disabled={isSubmitting} type="submit">
+          <LogIn className="btn-icon" aria-hidden="true" />
           {isSubmitting ? "Prijava..." : "Prijavi se"}
         </button>
 

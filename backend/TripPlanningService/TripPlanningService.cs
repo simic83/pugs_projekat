@@ -10,6 +10,7 @@ using TravelPlanner.Contracts.Destinations;
 using TravelPlanner.Contracts.Enums;
 using TravelPlanner.Contracts.Interfaces;
 using TravelPlanner.Contracts.Notes;
+using TravelPlanner.Contracts.Reminders;
 using TravelPlanner.Contracts.Trips;
 using TripPlanningService.Configuration;
 using TripPlanningService.Data;
@@ -48,6 +49,20 @@ namespace TripPlanningService
             catch (Exception exception) when (exception is InvalidOperationException or SqlException)
             {
                 LogDatabaseError("Trip plan list failed", exception);
+                return new List<TripPlanDto>();
+            }
+        }
+
+        public async Task<List<TripPlanDto>> GetAllTripPlansForAdminAsync()
+        {
+            try
+            {
+                var tripPlans = await repository.GetAllTripPlansAsync();
+                return tripPlans.Select(ToDto).ToList();
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Admin trip plan list failed", exception);
                 return new List<TripPlanDto>();
             }
         }
@@ -148,6 +163,25 @@ namespace TripPlanningService
             catch (Exception exception) when (exception is InvalidOperationException or SqlException)
             {
                 LogDatabaseError("Trip plan delete failed", exception);
+                return Failure(exception.Message);
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteTripPlanForAdminAsync(Guid tripPlanId)
+        {
+            if (tripPlanId == Guid.Empty)
+            {
+                return Failure("Trip plan id is invalid.");
+            }
+
+            try
+            {
+                var deleted = await repository.DeleteTripPlanAsync(tripPlanId);
+                return deleted ? Success("Trip plan deleted.") : Failure("Trip plan was not found.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Admin trip plan delete failed", exception);
                 return Failure(exception.Message);
             }
         }
@@ -653,6 +687,135 @@ namespace TripPlanningService
             }
         }
 
+        public async Task<List<ReminderDto>> GetRemindersAsync(Guid tripPlanId, Guid userId)
+        {
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return new List<ReminderDto>();
+                }
+
+                var reminders = await repository.GetRemindersByTripPlanIdAsync(tripPlanId);
+                return reminders.Select(ToDto).ToList();
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Reminder list failed", exception);
+                return new List<ReminderDto>();
+            }
+        }
+
+        public async Task<ReminderDto?> CreateReminderAsync(
+            Guid tripPlanId,
+            Guid userId,
+            CreateReminderRequestDto request)
+        {
+            if (tripPlanId == Guid.Empty
+                || request.TripPlanId == Guid.Empty
+                || request.TripPlanId != tripPlanId
+                || !IsValidReminder(request.Title, request.ReminderAt))
+            {
+                return null;
+            }
+
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return null;
+                }
+
+                var reminder = new ReminderModel
+                {
+                    Id = Guid.NewGuid(),
+                    TripPlanId = tripPlanId,
+                    Title = request.Title.Trim(),
+                    Description = NormalizeOptionalText(request.Description),
+                    ReminderAt = request.ReminderAt,
+                    IsCompleted = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var created = await repository.CreateReminderAsync(reminder);
+                return ToDto(created);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Reminder create failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<ReminderDto?> UpdateReminderAsync(
+            Guid tripPlanId,
+            Guid reminderId,
+            Guid userId,
+            UpdateReminderRequestDto request)
+        {
+            if (reminderId == Guid.Empty || !IsValidReminder(request.Title, request.ReminderAt))
+            {
+                return null;
+            }
+
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return null;
+                }
+
+                var reminder = await repository.GetReminderByIdAsync(reminderId);
+                if (reminder is null || reminder.TripPlanId != tripPlanId)
+                {
+                    return null;
+                }
+
+                reminder.Title = request.Title.Trim();
+                reminder.Description = NormalizeOptionalText(request.Description);
+                reminder.ReminderAt = request.ReminderAt;
+                reminder.IsCompleted = request.IsCompleted;
+                reminder.UpdatedAt = DateTime.UtcNow;
+
+                var updated = await repository.UpdateReminderAsync(reminder);
+                return updated ? ToDto(reminder) : null;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Reminder update failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteReminderAsync(Guid tripPlanId, Guid reminderId, Guid userId)
+        {
+            try
+            {
+                var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
+                if (tripPlan is null)
+                {
+                    return Failure("Trip plan was not found.");
+                }
+
+                var reminder = await repository.GetReminderByIdAsync(reminderId);
+                if (reminder is null || reminder.TripPlanId != tripPlanId)
+                {
+                    return Failure("Reminder was not found.");
+                }
+
+                var deleted = await repository.DeleteReminderAsync(reminderId);
+                return deleted ? Success("Reminder deleted.") : Failure("Reminder was not deleted.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Reminder delete failed", exception);
+                return Failure(exception.Message);
+            }
+        }
+
         private async Task<TripPlanModel?> GetOwnedTripPlanAsync(Guid tripPlanId, Guid userId)
         {
             if (tripPlanId == Guid.Empty || userId == Guid.Empty)
@@ -695,6 +858,13 @@ namespace TripPlanningService
         {
             return !string.IsNullOrWhiteSpace(title)
                 && title.Trim().Length <= 150;
+        }
+
+        private static bool IsValidReminder(string title, DateTime reminderAt)
+        {
+            return !string.IsNullOrWhiteSpace(title)
+                && title.Trim().Length <= 150
+                && reminderAt != default;
         }
 
         private static string? NormalizeOptionalText(string? value)
@@ -776,6 +946,21 @@ namespace TripPlanningService
                 Content = note.Content,
                 CreatedAt = note.CreatedAt,
                 UpdatedAt = note.UpdatedAt
+            };
+        }
+
+        private static ReminderDto ToDto(ReminderModel reminder)
+        {
+            return new ReminderDto
+            {
+                Id = reminder.Id,
+                TripPlanId = reminder.TripPlanId,
+                Title = reminder.Title,
+                Description = reminder.Description,
+                ReminderAt = reminder.ReminderAt,
+                IsCompleted = reminder.IsCompleted,
+                CreatedAt = reminder.CreatedAt,
+                UpdatedAt = reminder.UpdatedAt
             };
         }
 

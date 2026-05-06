@@ -1,31 +1,48 @@
+import { Plane, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { FormFieldError } from "../components/trips/FormFieldError.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { hasValidationErrors, validateRegister } from "../utils/validation.js";
 
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateField = (event) => {
+    const { name, value } = event.target;
     setForm((currentForm) => ({
       ...currentForm,
-      [event.target.name]: event.target.value,
+      [name]: value,
+    }));
+    setErrors((currentErrors) => ({
+      ...currentErrors,
+      [name]: "",
     }));
   };
 
   const submit = async (event) => {
     event.preventDefault();
     setError("");
+
+    const validationErrors = validateRegister(form);
+    if (hasValidationErrors(validationErrors)) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setErrors({});
     setIsSubmitting(true);
 
     try {
       await register(form);
       navigate("/", { replace: true });
     } catch (requestError) {
-      setError(requestError.message);
+      setError(requestError.message || "Doslo je do greske.");
     } finally {
       setIsSubmitting(false);
     }
@@ -33,9 +50,11 @@ export function RegisterPage() {
 
   return (
     <main className="auth-page">
-      <form className="auth-card" onSubmit={submit}>
+      <form className="auth-card" noValidate onSubmit={submit}>
         <div className="auth-heading">
-          <span className="brand-mark">TP</span>
+          <span className="brand-mark" aria-hidden="true">
+            <Plane />
+          </span>
           <h1 className="auth-title">Register</h1>
           <p className="auth-subtitle">Napravi nalog za svoje planove putovanja.</p>
         </div>
@@ -44,45 +63,49 @@ export function RegisterPage() {
           <span className="field-label">Ime</span>
           <input
             autoComplete="name"
-            className="input"
+            className={`input${errors.name ? " input-error" : ""}`}
             name="name"
             onChange={updateField}
             required
             type="text"
             value={form.name}
           />
+          <FormFieldError message={errors.name} />
         </label>
 
         <label className="field">
           <span className="field-label">Email</span>
           <input
             autoComplete="email"
-            className="input"
+            className={`input${errors.email ? " input-error" : ""}`}
             name="email"
             onChange={updateField}
             required
             type="email"
             value={form.email}
           />
+          <FormFieldError message={errors.email} />
         </label>
 
         <label className="field">
           <span className="field-label">Lozinka</span>
           <input
             autoComplete="new-password"
-            className="input"
-            minLength={8}
+            className={`input${errors.password ? " input-error" : ""}`}
+            minLength={6}
             name="password"
             onChange={updateField}
             required
             type="password"
             value={form.password}
           />
+          <FormFieldError message={errors.password} />
         </label>
 
         {error ? <p className="alert alert-error">{error}</p> : null}
 
         <button className="btn btn-primary" disabled={isSubmitting} type="submit">
+          <UserPlus className="btn-icon" aria-hidden="true" />
           {isSubmitting ? "Kreiranje..." : "Kreiraj nalog"}
         </button>
 

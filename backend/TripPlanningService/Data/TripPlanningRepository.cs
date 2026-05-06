@@ -58,6 +58,24 @@ internal sealed class TripPlanningRepository : ITripPlanningRepository
         return tripPlans;
     }
 
+    public async Task<List<TripPlanModel>> GetAllTripPlansAsync()
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(
+            TripPlanSelectSql + " ORDER BY CreatedAt DESC, StartDate;",
+            connection);
+
+        await using var reader = await command.ExecuteReaderAsync();
+        var tripPlans = new List<TripPlanModel>();
+
+        while (await reader.ReadAsync())
+        {
+            tripPlans.Add(ReadTripPlan(reader));
+        }
+
+        return tripPlans;
+    }
+
     public async Task<bool> UpdateTripPlanAsync(TripPlanModel tripPlan)
     {
         await using var connection = await CreateOpenConnectionAsync();
@@ -384,6 +402,80 @@ internal sealed class TripPlanningRepository : ITripPlanningRepository
         return await command.ExecuteNonQueryAsync() > 0;
     }
 
+    public async Task<ReminderModel> CreateReminderAsync(ReminderModel reminder)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(
+            """
+            INSERT INTO dbo.Reminders
+                (Id, TripPlanId, Title, Description, ReminderAt, IsCompleted, CreatedAt, UpdatedAt)
+            VALUES
+                (@Id, @TripPlanId, @Title, @Description, @ReminderAt, @IsCompleted, @CreatedAt, @UpdatedAt);
+            """,
+            connection);
+
+        AddReminderParameters(command, reminder);
+        await command.ExecuteNonQueryAsync();
+        return reminder;
+    }
+
+    public async Task<List<ReminderModel>> GetRemindersByTripPlanIdAsync(Guid tripPlanId)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(
+            ReminderSelectSql + " WHERE TripPlanId = @TripPlanId ORDER BY IsCompleted, ReminderAt, CreatedAt;",
+            connection);
+        command.Parameters.AddWithValue("@TripPlanId", tripPlanId);
+
+        await using var reader = await command.ExecuteReaderAsync();
+        var reminders = new List<ReminderModel>();
+
+        while (await reader.ReadAsync())
+        {
+            reminders.Add(ReadReminder(reader));
+        }
+
+        return reminders;
+    }
+
+    public async Task<ReminderModel?> GetReminderByIdAsync(Guid reminderId)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(ReminderSelectSql + " WHERE Id = @Id;", connection);
+        command.Parameters.AddWithValue("@Id", reminderId);
+
+        await using var reader = await command.ExecuteReaderAsync();
+        return await reader.ReadAsync() ? ReadReminder(reader) : null;
+    }
+
+    public async Task<bool> UpdateReminderAsync(ReminderModel reminder)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(
+            """
+            UPDATE dbo.Reminders
+            SET Title = @Title,
+                Description = @Description,
+                ReminderAt = @ReminderAt,
+                IsCompleted = @IsCompleted,
+                UpdatedAt = @UpdatedAt
+            WHERE Id = @Id;
+            """,
+            connection);
+
+        AddReminderParameters(command, reminder);
+        return await command.ExecuteNonQueryAsync() > 0;
+    }
+
+    public async Task<bool> DeleteReminderAsync(Guid reminderId)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand("DELETE FROM dbo.Reminders WHERE Id = @Id;", connection);
+        command.Parameters.AddWithValue("@Id", reminderId);
+
+        return await command.ExecuteNonQueryAsync() > 0;
+    }
+
     private async Task<SqlConnection> CreateOpenConnectionAsync()
     {
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -456,6 +548,18 @@ internal sealed class TripPlanningRepository : ITripPlanningRepository
         command.Parameters.AddWithValue("@Content", ToDbValue(note.Content));
         command.Parameters.AddWithValue("@CreatedAt", note.CreatedAt);
         command.Parameters.AddWithValue("@UpdatedAt", ToDbValue(note.UpdatedAt));
+    }
+
+    private static void AddReminderParameters(SqlCommand command, ReminderModel reminder)
+    {
+        command.Parameters.AddWithValue("@Id", reminder.Id);
+        command.Parameters.AddWithValue("@TripPlanId", reminder.TripPlanId);
+        command.Parameters.AddWithValue("@Title", reminder.Title);
+        command.Parameters.AddWithValue("@Description", ToDbValue(reminder.Description));
+        command.Parameters.AddWithValue("@ReminderAt", reminder.ReminderAt);
+        command.Parameters.AddWithValue("@IsCompleted", reminder.IsCompleted);
+        command.Parameters.AddWithValue("@CreatedAt", reminder.CreatedAt);
+        command.Parameters.AddWithValue("@UpdatedAt", ToDbValue(reminder.UpdatedAt));
     }
 
     private static TripPlanModel ReadTripPlan(SqlDataReader reader)
@@ -535,6 +639,21 @@ internal sealed class TripPlanningRepository : ITripPlanningRepository
         };
     }
 
+    private static ReminderModel ReadReminder(SqlDataReader reader)
+    {
+        return new ReminderModel
+        {
+            Id = reader.GetGuid(0),
+            TripPlanId = reader.GetGuid(1),
+            Title = reader.GetString(2),
+            Description = reader.IsDBNull(3) ? null : reader.GetString(3),
+            ReminderAt = reader.GetDateTime(4),
+            IsCompleted = reader.GetBoolean(5),
+            CreatedAt = reader.GetDateTime(6),
+            UpdatedAt = reader.IsDBNull(7) ? null : reader.GetDateTime(7)
+        };
+    }
+
     private static object ToDbValue(object? value)
     {
         return value ?? DBNull.Value;
@@ -568,5 +687,11 @@ internal sealed class TripPlanningRepository : ITripPlanningRepository
         """
         SELECT Id, TripPlanId, Title, Content, CreatedAt, UpdatedAt
         FROM dbo.Notes
+        """;
+
+    private const string ReminderSelectSql =
+        """
+        SELECT Id, TripPlanId, Title, Description, ReminderAt, IsCompleted, CreatedAt, UpdatedAt
+        FROM dbo.Reminders
         """;
 }

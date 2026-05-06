@@ -1,4 +1,17 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Application xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Name="fabric:/TravelPlanner" xmlns="http://schemas.microsoft.com/2011/01/fabric">
-  <Parameters />
+  <Parameters>
+    <Parameter Name="Identity_DefaultConnection" Value="CHANGE_ME_CLOUD_SQL_CONNECTION_STRING" />
+    <Parameter Name="Identity_JwtSecret" Value="CHANGE_ME_CLOUD_JWT_SECRET_32_CHARS_MINIMUM" />
+    <Parameter Name="Identity_JwtIssuer" Value="CHANGE_ME_CLOUD_JWT_ISSUER" />
+    <Parameter Name="Identity_JwtAudience" Value="CHANGE_ME_CLOUD_JWT_AUDIENCE" />
+    <Parameter Name="Identity_JwtExpirationMinutes" Value="60" />
+    <Parameter Name="ApiGateway_JwtSecret" Value="CHANGE_ME_CLOUD_JWT_SECRET_32_CHARS_MINIMUM" />
+    <Parameter Name="ApiGateway_JwtIssuer" Value="CHANGE_ME_CLOUD_JWT_ISSUER" />
+    <Parameter Name="ApiGateway_JwtAudience" Value="CHANGE_ME_CLOUD_JWT_AUDIENCE" />
+    <Parameter Name="ApiGateway_AllowDevUserHeaderFallback" Value="false" />
+    <Parameter Name="TripPlanning_DefaultConnection" Value="CHANGE_ME_CLOUD_SQL_CONNECTION_STRING" />
+    <Parameter Name="Budget_DefaultConnection" Value="CHANGE_ME_CLOUD_SQL_CONNECTION_STRING" />
+    <Parameter Name="Sharing_DefaultConnection" Value="CHANGE_ME_CLOUD_SQL_CONNECTION_STRING" />
+  </Parameters>
 </Application>

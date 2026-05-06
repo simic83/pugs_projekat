@@ -1,15 +1,37 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
 import { activitiesApi } from "../api/activitiesApi.js";
 import { budgetApi } from "../api/budgetApi.js";
 import { checklistApi } from "../api/checklistApi.js";
 import { destinationsApi } from "../api/destinationsApi.js";
 import { notesApi } from "../api/notesApi.js";
+import { remindersApi } from "../api/remindersApi.js";
 import { sharingApi } from "../api/sharingApi.js";
 import { tripPlansApi } from "../api/tripPlansApi.js";
-import { ActivityCalendar, buildActivityCalendarDays, groupActivitiesByDate } from "../components/ActivityCalendar.jsx";
-import { EXPENSE_CATEGORIES } from "../models/budget.js";
-import { SHARE_ACCESS_LEVEL_OPTIONS, SHARE_ACCESS_LEVELS } from "../models/sharing.js";
+import { groupActivitiesByDate } from "../components/ActivityCalendar.jsx";
+import { ActivitiesSection } from "../components/trips/ActivitiesSection.jsx";
+import { ChecklistSection } from "../components/trips/ChecklistSection.jsx";
+import { DestinationsSection } from "../components/trips/DestinationsSection.jsx";
+import { EmptyState } from "../components/trips/EmptyState.jsx";
+import { ExpensesSection } from "../components/trips/ExpensesSection.jsx";
+import { NotesSection } from "../components/trips/NotesSection.jsx";
+import { RemindersSection } from "../components/trips/RemindersSection.jsx";
+import { SharingSection } from "../components/trips/SharingSection.jsx";
+import { TripPlanDetails } from "../components/trips/TripPlanDetails.jsx";
+import { TripPlanForm } from "../components/trips/TripPlanForm.jsx";
+import { TripPlanList } from "../components/trips/TripPlanList.jsx";
+import { buildSharedTripPlanLink, compareDates } from "../components/trips/tripDisplayUtils.js";
+import { SHARE_ACCESS_LEVELS } from "../models/sharing.js";
+import {
+  hasValidationErrors,
+  validateActivity,
+  validateChecklistItem,
+  validateDestination,
+  validateExpense,
+  validateNote,
+  validateReminder,
+  validateShare,
+  validateTripPlan,
+} from "../utils/validation.js";
 
 const emptyTripPlanForm = {
   title: "",
@@ -55,12 +77,24 @@ const emptyNoteForm = {
   content: "",
 };
 
-const activityStatuses = [
-  { value: 0, label: "Planned" },
-  { value: 1, label: "Reserved" },
-  { value: 2, label: "Completed" },
-  { value: 3, label: "Cancelled" },
-];
+const emptyReminderForm = {
+  title: "",
+  description: "",
+  reminderAt: "",
+  isCompleted: false,
+};
+
+const emptyFormErrors = {
+  tripPlan: {},
+  selectedTripPlan: {},
+  destination: {},
+  activity: {},
+  expense: {},
+  checklist: {},
+  note: {},
+  reminder: {},
+  share: {},
+};
 
 export function TripPlansPage() {
   const [tripPlans, setTripPlans] = useState([]);
@@ -71,6 +105,7 @@ export function TripPlansPage() {
   const [expenses, setExpenses] = useState([]);
   const [checklistItems, setChecklistItems] = useState([]);
   const [notes, setNotes] = useState([]);
+  const [reminders, setReminders] = useState([]);
   const [shares, setShares] = useState([]);
   const [budgetSummary, setBudgetSummary] = useState(null);
   const [tripPlanForm, setTripPlanForm] = useState(emptyTripPlanForm);
@@ -80,6 +115,7 @@ export function TripPlansPage() {
   const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
   const [checklistForm, setChecklistForm] = useState(emptyChecklistForm);
   const [noteForm, setNoteForm] = useState(emptyNoteForm);
+  const [reminderForm, setReminderForm] = useState(emptyReminderForm);
   const [shareAccessLevel, setShareAccessLevel] = useState(SHARE_ACCESS_LEVELS.VIEW);
   const [shareExpiresAt, setShareExpiresAt] = useState("");
   const [generatedShareLink, setGeneratedShareLink] = useState("");
@@ -90,7 +126,9 @@ export function TripPlansPage() {
   const [editingExpenseId, setEditingExpenseId] = useState(null);
   const [editingChecklistItemId, setEditingChecklistItemId] = useState(null);
   const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editingReminderId, setEditingReminderId] = useState(null);
   const [error, setError] = useState("");
+  const [formErrors, setFormErrors] = useState(emptyFormErrors);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -109,7 +147,7 @@ export function TripPlansPage() {
         return plans[0]?.id ?? null;
       });
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     } finally {
       setIsLoading(false);
     }
@@ -123,6 +161,7 @@ export function TripPlansPage() {
       setExpenses([]);
       setChecklistItems([]);
       setNotes([]);
+      setReminders([]);
       setShares([]);
       setBudgetSummary(null);
       setSelectedTripPlanForm(emptyTripPlanForm);
@@ -131,13 +170,16 @@ export function TripPlansPage() {
       setEditingExpenseId(null);
       setEditingChecklistItemId(null);
       setEditingNoteId(null);
+      setEditingReminderId(null);
       setDestinationForm(emptyDestinationForm);
       setActivityForm(emptyActivityForm);
       setExpenseForm(emptyExpenseForm);
       setChecklistForm(emptyChecklistForm);
       setNoteForm(emptyNoteForm);
+      setReminderForm(emptyReminderForm);
       setGeneratedShareLink("");
       setVisibleShareQrId(null);
+      setFormErrors(emptyFormErrors);
       return;
     }
 
@@ -152,6 +194,7 @@ export function TripPlansPage() {
         tripBudgetSummary,
         tripChecklistItems,
         tripNotes,
+        tripReminders,
         tripShares,
       ] =
         await Promise.all([
@@ -162,6 +205,7 @@ export function TripPlansPage() {
           budgetApi.getBudgetSummary(tripPlanId),
           checklistApi.getChecklistItems(tripPlanId),
           notesApi.getNotes(tripPlanId),
+          remindersApi.getReminders(tripPlanId),
           sharingApi.getShares(tripPlanId),
         ]);
 
@@ -173,9 +217,10 @@ export function TripPlansPage() {
       setBudgetSummary(tripBudgetSummary);
       setChecklistItems(tripChecklistItems ?? []);
       setNotes(tripNotes ?? []);
+      setReminders(tripReminders ?? []);
       setShares(tripShares ?? []);
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   }, []);
 
@@ -194,37 +239,91 @@ export function TripPlansPage() {
 
   const activityGroups = useMemo(() => groupActivitiesByDate(activities), [activities]);
 
-  const activityCalendarDays = useMemo(
-    () => buildActivityCalendarDays(selectedTripPlan?.startDate, selectedTripPlan?.endDate, activities),
-    [activities, selectedTripPlan?.endDate, selectedTripPlan?.startDate],
-  );
+  const setFormValidationErrors = (formName, validationErrors) => {
+    setFormErrors((currentErrors) => ({
+      ...currentErrors,
+      [formName]: validationErrors,
+    }));
+  };
+
+  const clearFormErrors = (formName) => {
+    setFormValidationErrors(formName, {});
+  };
+
+  const clearFormFieldError = (formName, fieldName) => {
+    setFormErrors((currentErrors) => ({
+      ...currentErrors,
+      [formName]: {
+        ...currentErrors[formName],
+        [fieldName]: "",
+      },
+    }));
+  };
+
+  const stopInvalidSubmit = (formName, validationErrors) => {
+    if (hasValidationErrors(validationErrors)) {
+      setFormValidationErrors(formName, validationErrors);
+      setError("");
+      setMessage("");
+      return true;
+    }
+
+    clearFormErrors(formName);
+    return false;
+  };
 
   const updateTripPlanField = (event) => {
+    clearFormFieldError("tripPlan", event.target.name);
     updateForm(setTripPlanForm, event);
   };
 
   const updateSelectedTripPlanField = (event) => {
+    clearFormFieldError("selectedTripPlan", event.target.name);
     updateForm(setSelectedTripPlanForm, event);
   };
 
   const updateDestinationField = (event) => {
+    clearFormFieldError("destination", event.target.name);
     updateForm(setDestinationForm, event);
   };
 
   const updateActivityField = (event) => {
+    clearFormFieldError("activity", event.target.name);
     updateForm(setActivityForm, event);
   };
 
   const updateExpenseField = (event) => {
+    clearFormFieldError("expense", event.target.name);
     updateForm(setExpenseForm, event);
   };
 
   const updateChecklistField = (event) => {
+    clearFormFieldError("checklist", event.target.name);
     updateForm(setChecklistForm, event);
   };
 
   const updateNoteField = (event) => {
+    clearFormFieldError("note", event.target.name);
     updateForm(setNoteForm, event);
+  };
+
+  const updateReminderField = (event) => {
+    const { checked, name, type, value } = event.target;
+    clearFormFieldError("reminder", name);
+    setReminderForm((currentForm) => ({
+      ...currentForm,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const updateShareAccessLevel = (accessLevel) => {
+    clearFormFieldError("share", "accessLevel");
+    setShareAccessLevel(accessLevel);
+  };
+
+  const updateShareExpiresAt = (expiresAt) => {
+    clearFormFieldError("share", "expiresAt");
+    setShareExpiresAt(expiresAt);
   };
 
   const selectTripPlan = (tripPlanId) => {
@@ -235,19 +334,27 @@ export function TripPlansPage() {
     setEditingExpenseId(null);
     setEditingChecklistItemId(null);
     setEditingNoteId(null);
+    setEditingReminderId(null);
     setDestinationForm(emptyDestinationForm);
     setActivityForm(emptyActivityForm);
     setExpenseForm(emptyExpenseForm);
     setChecklistForm(emptyChecklistForm);
     setNoteForm(emptyNoteForm);
+    setReminderForm(emptyReminderForm);
     setGeneratedShareLink("");
     setVisibleShareQrId(null);
     setActivityViewMode("list");
+    setFormErrors(emptyFormErrors);
   };
 
   const submitTripPlan = async (event) => {
     event.preventDefault();
     setError("");
+    setMessage("");
+
+    if (stopInvalidSubmit("tripPlan", validateTripPlan(tripPlanForm))) {
+      return;
+    }
 
     try {
       const created = await tripPlansApi.create({
@@ -262,8 +369,9 @@ export function TripPlansPage() {
       setTripPlanForm(emptyTripPlanForm);
       await loadTripPlans();
       setSelectedTripPlanId(created.id);
+      setMessage("Uspesno sacuvano.");
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
@@ -278,13 +386,14 @@ export function TripPlansPage() {
       setExpenses([]);
       setChecklistItems([]);
       setNotes([]);
+      setReminders([]);
       setShares([]);
       setBudgetSummary(null);
       setGeneratedShareLink("");
       setVisibleShareQrId(null);
       await loadTripPlans();
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
@@ -296,6 +405,10 @@ export function TripPlansPage() {
 
     setError("");
     setMessage("");
+
+    if (stopInvalidSubmit("selectedTripPlan", validateTripPlan(selectedTripPlanForm))) {
+      return;
+    }
 
     try {
       await tripPlansApi.update(selectedTripPlanId, {
@@ -311,12 +424,13 @@ export function TripPlansPage() {
       await loadTripPlans();
       setMessage("Osnovni podaci plana su sacuvani.");
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
   const resetSelectedTripPlanForm = () => {
     setSelectedTripPlanForm(toTripPlanForm(selectedTripPlan));
+    clearFormErrors("selectedTripPlan");
     setMessage("");
   };
 
@@ -327,6 +441,11 @@ export function TripPlansPage() {
     }
 
     setError("");
+    setMessage("");
+
+    if (stopInvalidSubmit("destination", validateDestination(destinationForm))) {
+      return;
+    }
 
     try {
       const payload = {
@@ -345,13 +464,15 @@ export function TripPlansPage() {
 
       cancelDestinationEdit();
       await loadTripPlanDetails(selectedTripPlanId);
+      setMessage("Uspesno sacuvano.");
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
   const editDestination = (destination) => {
     setEditingDestinationId(destination.id);
+    clearFormErrors("destination");
     setDestinationForm({
       name: destination.name ?? "",
       location: destination.location ?? "",
@@ -364,6 +485,7 @@ export function TripPlansPage() {
   const cancelDestinationEdit = () => {
     setEditingDestinationId(null);
     setDestinationForm(emptyDestinationForm);
+    clearFormErrors("destination");
   };
 
   const deleteDestination = async (destinationId) => {
@@ -372,6 +494,7 @@ export function TripPlansPage() {
     }
 
     setError("");
+    setMessage("");
 
     try {
       await destinationsApi.remove(selectedTripPlanId, destinationId);
@@ -380,7 +503,7 @@ export function TripPlansPage() {
       }
       await loadTripPlanDetails(selectedTripPlanId);
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
@@ -391,6 +514,11 @@ export function TripPlansPage() {
     }
 
     setError("");
+    setMessage("");
+
+    if (stopInvalidSubmit("activity", validateActivity(activityForm))) {
+      return;
+    }
 
     try {
       const payload = {
@@ -411,13 +539,15 @@ export function TripPlansPage() {
 
       cancelActivityEdit();
       await loadTripPlanDetails(selectedTripPlanId);
+      setMessage("Uspesno sacuvano.");
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
   const editActivity = (activity) => {
     setEditingActivityId(activity.id);
+    clearFormErrors("activity");
     setActivityForm({
       title: activity.title ?? "",
       activityDate: toDateInputValue(activity.activityDate),
@@ -432,6 +562,7 @@ export function TripPlansPage() {
   const cancelActivityEdit = () => {
     setEditingActivityId(null);
     setActivityForm(emptyActivityForm);
+    clearFormErrors("activity");
   };
 
   const deleteActivity = async (activityId) => {
@@ -440,6 +571,7 @@ export function TripPlansPage() {
     }
 
     setError("");
+    setMessage("");
 
     try {
       await activitiesApi.remove(selectedTripPlanId, activityId);
@@ -448,7 +580,7 @@ export function TripPlansPage() {
       }
       await loadTripPlanDetails(selectedTripPlanId);
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
@@ -459,6 +591,11 @@ export function TripPlansPage() {
     }
 
     setError("");
+    setMessage("");
+
+    if (stopInvalidSubmit("expense", validateExpense(expenseForm))) {
+      return;
+    }
 
     try {
       const payload = {
@@ -478,13 +615,15 @@ export function TripPlansPage() {
 
       cancelExpenseEdit();
       await loadTripPlanDetails(selectedTripPlanId);
+      setMessage("Uspesno sacuvano.");
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
   const editExpense = (expense) => {
     setEditingExpenseId(expense.id);
+    clearFormErrors("expense");
     setExpenseForm({
       title: expense.title ?? "",
       category: Number(expense.category ?? 0),
@@ -497,6 +636,7 @@ export function TripPlansPage() {
   const cancelExpenseEdit = () => {
     setEditingExpenseId(null);
     setExpenseForm(emptyExpenseForm);
+    clearFormErrors("expense");
   };
 
   const deleteExpense = async (expenseId) => {
@@ -505,6 +645,7 @@ export function TripPlansPage() {
     }
 
     setError("");
+    setMessage("");
 
     try {
       await budgetApi.deleteExpense(selectedTripPlanId, expenseId);
@@ -513,7 +654,7 @@ export function TripPlansPage() {
       }
       await loadTripPlanDetails(selectedTripPlanId);
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
@@ -524,6 +665,11 @@ export function TripPlansPage() {
     }
 
     setError("");
+    setMessage("");
+
+    if (stopInvalidSubmit("checklist", validateChecklistItem(checklistForm))) {
+      return;
+    }
 
     try {
       const payload = {
@@ -543,13 +689,15 @@ export function TripPlansPage() {
 
       cancelChecklistEdit();
       await loadTripPlanDetails(selectedTripPlanId);
+      setMessage("Uspesno sacuvano.");
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
   const editChecklistItem = (checklistItem) => {
     setEditingChecklistItemId(checklistItem.id);
+    clearFormErrors("checklist");
     setChecklistForm({
       title: checklistItem.title ?? "",
     });
@@ -558,6 +706,7 @@ export function TripPlansPage() {
   const cancelChecklistEdit = () => {
     setEditingChecklistItemId(null);
     setChecklistForm(emptyChecklistForm);
+    clearFormErrors("checklist");
   };
 
   const toggleChecklistItem = async (checklistItem, isCompleted) => {
@@ -575,7 +724,7 @@ export function TripPlansPage() {
 
       await loadTripPlanDetails(selectedTripPlanId);
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
@@ -593,7 +742,7 @@ export function TripPlansPage() {
       }
       await loadTripPlanDetails(selectedTripPlanId);
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
@@ -604,6 +753,11 @@ export function TripPlansPage() {
     }
 
     setError("");
+    setMessage("");
+
+    if (stopInvalidSubmit("note", validateNote(noteForm))) {
+      return;
+    }
 
     try {
       const payload = {
@@ -623,13 +777,15 @@ export function TripPlansPage() {
 
       cancelNoteEdit();
       await loadTripPlanDetails(selectedTripPlanId);
+      setMessage("Uspesno sacuvano.");
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
   const editNote = (note) => {
     setEditingNoteId(note.id);
+    clearFormErrors("note");
     setNoteForm({
       title: note.title ?? "",
       content: note.content ?? "",
@@ -639,6 +795,7 @@ export function TripPlansPage() {
   const cancelNoteEdit = () => {
     setEditingNoteId(null);
     setNoteForm(emptyNoteForm);
+    clearFormErrors("note");
   };
 
   const deleteNote = async (noteId) => {
@@ -655,7 +812,111 @@ export function TripPlansPage() {
       }
       await loadTripPlanDetails(selectedTripPlanId);
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
+    }
+  };
+
+  const submitReminder = async (event) => {
+    event.preventDefault();
+    if (!selectedTripPlanId) {
+      return;
+    }
+
+    setError("");
+    setMessage("");
+
+    if (stopInvalidSubmit("reminder", validateReminder(reminderForm))) {
+      return;
+    }
+
+    try {
+      const payload = {
+        tripPlanId: selectedTripPlanId,
+        title: reminderForm.title,
+        description: reminderForm.description || null,
+        reminderAt: toDateTimeLocalValue(reminderForm.reminderAt),
+      };
+
+      if (editingReminderId) {
+        await remindersApi.updateReminder(selectedTripPlanId, editingReminderId, {
+          title: payload.title,
+          description: payload.description,
+          reminderAt: payload.reminderAt,
+          isCompleted: Boolean(reminderForm.isCompleted),
+        });
+      } else {
+        const created = await remindersApi.createReminder(selectedTripPlanId, payload);
+        if (reminderForm.isCompleted && created?.id) {
+          await remindersApi.updateReminder(selectedTripPlanId, created.id, {
+            title: payload.title,
+            description: payload.description,
+            reminderAt: payload.reminderAt,
+            isCompleted: true,
+          });
+        }
+      }
+
+      cancelReminderEdit();
+      await loadTripPlanDetails(selectedTripPlanId);
+      setMessage("Uspesno sacuvano.");
+    } catch (requestError) {
+      setError(getRequestErrorMessage(requestError));
+    }
+  };
+
+  const editReminder = (reminder) => {
+    setEditingReminderId(reminder.id);
+    clearFormErrors("reminder");
+    setReminderForm({
+      title: reminder.title ?? "",
+      description: reminder.description ?? "",
+      reminderAt: toDateTimeInputValue(reminder.reminderAt),
+      isCompleted: Boolean(reminder.isCompleted),
+    });
+  };
+
+  const cancelReminderEdit = () => {
+    setEditingReminderId(null);
+    setReminderForm(emptyReminderForm);
+    clearFormErrors("reminder");
+  };
+
+  const toggleReminder = async (reminder, isCompleted) => {
+    if (!selectedTripPlanId) {
+      return;
+    }
+
+    setError("");
+
+    try {
+      await remindersApi.updateReminder(selectedTripPlanId, reminder.id, {
+        title: reminder.title,
+        description: reminder.description || null,
+        reminderAt: reminder.reminderAt,
+        isCompleted,
+      });
+
+      await loadTripPlanDetails(selectedTripPlanId);
+    } catch (requestError) {
+      setError(getRequestErrorMessage(requestError));
+    }
+  };
+
+  const deleteReminder = async (reminderId) => {
+    if (!selectedTripPlanId) {
+      return;
+    }
+
+    setError("");
+
+    try {
+      await remindersApi.deleteReminder(selectedTripPlanId, reminderId);
+      if (editingReminderId === reminderId) {
+        cancelReminderEdit();
+      }
+      await loadTripPlanDetails(selectedTripPlanId);
+    } catch (requestError) {
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
@@ -666,6 +927,11 @@ export function TripPlansPage() {
     }
 
     setError("");
+    setMessage("");
+
+    if (stopInvalidSubmit("share", validateShare({ accessLevel: shareAccessLevel, expiresAt: shareExpiresAt }))) {
+      return;
+    }
 
     try {
       const created = await sharingApi.createShare(selectedTripPlanId, {
@@ -678,8 +944,9 @@ export function TripPlansPage() {
       setVisibleShareQrId(created.id ?? null);
       const tripShares = await sharingApi.getShares(selectedTripPlanId);
       setShares(tripShares ?? []);
+      setMessage("Uspesno sacuvano.");
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
@@ -697,7 +964,7 @@ export function TripPlansPage() {
       const tripShares = await sharingApi.getShares(selectedTripPlanId);
       setShares(tripShares ?? []);
     } catch (requestError) {
-      setError(requestError.message);
+      setError(getRequestErrorMessage(requestError));
     }
   };
 
@@ -723,948 +990,136 @@ export function TripPlansPage() {
               </div>
             </div>
 
-            <form className="form-grid" onSubmit={submitTripPlan}>
-              <label className="field">
-                <span className="field-label">Naziv plana</span>
-                <input
-                  className="input"
-                  name="title"
-                  onChange={updateTripPlanField}
-                  placeholder="Letovanje u Grckoj"
-                  required
-                  value={tripPlanForm.title}
-                />
-              </label>
-
-              <label className="field">
-                <span className="field-label">Opis</span>
-                <textarea
-                  className="textarea"
-                  name="description"
-                  onChange={updateTripPlanField}
-                  placeholder="Kratak opis plana"
-                  rows={3}
-                  value={tripPlanForm.description}
-                />
-              </label>
-
-              <div className="form-row">
-                <label className="field">
-                  <span className="field-label">Pocetak</span>
-                  <input
-                    className="input"
-                    name="startDate"
-                    onChange={updateTripPlanField}
-                    required
-                    type="date"
-                    value={tripPlanForm.startDate}
-                  />
-                </label>
-                <label className="field">
-                  <span className="field-label">Kraj</span>
-                  <input
-                    className="input"
-                    name="endDate"
-                    onChange={updateTripPlanField}
-                    required
-                    type="date"
-                    value={tripPlanForm.endDate}
-                  />
-                </label>
-              </div>
-
-              <label className="field">
-                <span className="field-label">Planirani budzet</span>
-                <input
-                  className="input"
-                  min="0"
-                  name="plannedBudget"
-                  onChange={updateTripPlanField}
-                  step="0.01"
-                  type="number"
-                  value={tripPlanForm.plannedBudget}
-                />
-              </label>
-
-              <label className="field">
-                <span className="field-label">Napomene</span>
-                <textarea
-                  className="textarea"
-                  name="notes"
-                  onChange={updateTripPlanField}
-                  placeholder="Smestaj, prevoz, vazne napomene"
-                  rows={3}
-                  value={tripPlanForm.notes}
-                />
-              </label>
-
-              <button className="btn btn-primary" type="submit">
-                Dodaj plan
-              </button>
-            </form>
+            <TripPlanForm
+              errors={formErrors.tripPlan}
+              form={tripPlanForm}
+              onChange={updateTripPlanField}
+              onSubmit={submitTripPlan}
+            />
           </section>
 
-          <section className="section-card">
-            <div className="section-header">
-              <div>
-                <h2 className="section-title">Planovi</h2>
-                <p className="section-subtitle">Ukupno: {tripPlans.length}</p>
-              </div>
-              {isLoading ? <span className="badge badge-muted">Ucitava se...</span> : null}
-            </div>
-
-            <div className="trip-list">
-              {tripPlans.map((tripPlan) => (
-                <article
-                  className={`trip-card${tripPlan.id === selectedTripPlanId ? " is-active" : ""}`}
-                  key={tripPlan.id}
-                >
-                  <div className="trip-card-header">
-                    <h3 className="trip-title">{tripPlan.title}</h3>
-                    <span className="badge">{formatMoney(tripPlan.plannedBudget)}</span>
-                  </div>
-
-                  {tripPlan.description ? <p className="trip-description">{tripPlan.description}</p> : null}
-
-                  <div className="meta-grid">
-                    <span className="meta-item">
-                      <span className="meta-label">Datumi</span>
-                      <span className="meta-value">{formatDateRange(tripPlan.startDate, tripPlan.endDate)}</span>
-                    </span>
-                    <span className="meta-item">
-                      <span className="meta-label">Budzet</span>
-                      <span className="meta-value">{formatMoney(tripPlan.plannedBudget)}</span>
-                    </span>
-                  </div>
-
-                  <div className="card-actions">
-                    <button className="btn btn-primary btn-small" onClick={() => selectTripPlan(tripPlan.id)} type="button">
-                      Otvori detalje
-                    </button>
-                    <button
-                      className="btn btn-danger-soft btn-small"
-                      onClick={() => deleteTripPlan(tripPlan.id)}
-                      type="button"
-                    >
-                      Obrisi
-                    </button>
-                  </div>
-                </article>
-              ))}
-
-              {!isLoading && tripPlans.length === 0 ? <div className="empty-state">Nema sacuvanih planova.</div> : null}
-            </div>
-          </section>
+          <TripPlanList
+            isLoading={isLoading}
+            onDelete={deleteTripPlan}
+            onSelect={selectTripPlan}
+            selectedTripPlanId={selectedTripPlanId}
+            tripPlans={tripPlans}
+          />
         </aside>
 
         <section className="details-column">
           {selectedTripPlan ? (
             <>
-              <section className="section-card">
-                <div className="section-header">
-                  <div>
-                    <h2 className="section-title">Osnovni podaci</h2>
-                    <p className="section-subtitle">Naziv, period, budzet i napomene za izabrani plan.</p>
-                  </div>
-                  <button className="btn btn-danger-soft" onClick={() => deleteTripPlan(selectedTripPlan.id)} type="button">
-                    Obrisi plan
-                  </button>
-                </div>
+              <TripPlanDetails
+                budgetSummary={budgetSummary}
+                errors={formErrors.selectedTripPlan}
+                form={selectedTripPlanForm}
+                onChange={updateSelectedTripPlanField}
+                onDelete={deleteTripPlan}
+                onReset={resetSelectedTripPlanForm}
+                onSubmit={updateSelectedTripPlan}
+                tripPlan={selectedTripPlan}
+              />
 
-                <div className="detail-heading">
-                  <div>
-                    <h3 className="detail-title">{selectedTripPlan.title}</h3>
-                    <p className="section-subtitle">
-                      {formatDateRange(selectedTripPlan.startDate, selectedTripPlan.endDate)}
-                    </p>
-                  </div>
-                </div>
+              <RemindersSection
+                editingReminderId={editingReminderId}
+                errors={formErrors.reminder}
+                form={reminderForm}
+                onCancelEdit={cancelReminderEdit}
+                onChange={updateReminderField}
+                onDelete={deleteReminder}
+                onEdit={editReminder}
+                onSubmit={submitReminder}
+                onToggle={toggleReminder}
+                reminders={reminders}
+              />
 
-                <div className="overview-grid">
-                  <span className="stat-tile">
-                    <span className="stat-label">Planirani budzet</span>
-                    <span className="stat-value">
-                      {formatMoney(budgetSummary?.plannedBudget ?? selectedTripPlan.plannedBudget)}
-                    </span>
-                  </span>
-                  <span className="stat-tile">
-                    <span className="stat-label">Ukupno potroseno</span>
-                    <span className="stat-value">{formatMoney(budgetSummary?.totalExpenses)}</span>
-                  </span>
-                  <span className="stat-tile">
-                    <span className="stat-label">Preostalo</span>
-                    <span className="stat-value">
-                      {formatMoney(budgetSummary?.remainingBudget ?? selectedTripPlan.plannedBudget)}
-                    </span>
-                  </span>
-                </div>
+              <DestinationsSection
+                destinations={sortedDestinations}
+                editingDestinationId={editingDestinationId}
+                errors={formErrors.destination}
+                form={destinationForm}
+                onCancelEdit={cancelDestinationEdit}
+                onChange={updateDestinationField}
+                onDelete={deleteDestination}
+                onEdit={editDestination}
+                onSubmit={submitDestination}
+              />
 
-                {selectedTripPlan.description ? <p className="list-item-description">{selectedTripPlan.description}</p> : null}
-                {selectedTripPlan.notes ? <p className="note-box">{selectedTripPlan.notes}</p> : null}
+              <ActivitiesSection
+                activities={activities}
+                activityGroups={activityGroups}
+                activityViewMode={activityViewMode}
+                editingActivityId={editingActivityId}
+                errors={formErrors.activity}
+                form={activityForm}
+                initialCalendarDate={selectedTripPlan.startDate}
+                onCancelEdit={cancelActivityEdit}
+                onChange={updateActivityField}
+                onDelete={deleteActivity}
+                onEdit={editActivity}
+                onSubmit={submitActivity}
+                onViewModeChange={setActivityViewMode}
+              />
 
-                <div className="form-panel">
-                  <h3 className="subsection-title">Izmena osnovnih podataka</h3>
-                  <form className="form-grid" onSubmit={updateSelectedTripPlan}>
-                    <label className="field">
-                      <span className="field-label">Naziv plana</span>
-                      <input
-                        className="input"
-                        name="title"
-                        onChange={updateSelectedTripPlanField}
-                        required
-                        value={selectedTripPlanForm.title}
-                      />
-                    </label>
+              <ExpensesSection
+                budgetSummary={budgetSummary}
+                editingExpenseId={editingExpenseId}
+                errors={formErrors.expense}
+                expenses={expenses}
+                form={expenseForm}
+                onCancelEdit={cancelExpenseEdit}
+                onChange={updateExpenseField}
+                onDelete={deleteExpense}
+                onEdit={editExpense}
+                onSubmit={submitExpense}
+                selectedTripPlan={selectedTripPlan}
+              />
 
-                    <label className="field">
-                      <span className="field-label">Opis</span>
-                      <textarea
-                        className="textarea"
-                        name="description"
-                        onChange={updateSelectedTripPlanField}
-                        rows={3}
-                        value={selectedTripPlanForm.description}
-                      />
-                    </label>
+              <ChecklistSection
+                checklistItems={checklistItems}
+                editingChecklistItemId={editingChecklistItemId}
+                errors={formErrors.checklist}
+                form={checklistForm}
+                onCancelEdit={cancelChecklistEdit}
+                onChange={updateChecklistField}
+                onDelete={deleteChecklistItem}
+                onEdit={editChecklistItem}
+                onSubmit={submitChecklistItem}
+                onToggle={toggleChecklistItem}
+              />
 
-                    <div className="form-row">
-                      <label className="field">
-                        <span className="field-label">Pocetak</span>
-                        <input
-                          className="input"
-                          name="startDate"
-                          onChange={updateSelectedTripPlanField}
-                          required
-                          type="date"
-                          value={selectedTripPlanForm.startDate}
-                        />
-                      </label>
-                      <label className="field">
-                        <span className="field-label">Kraj</span>
-                        <input
-                          className="input"
-                          name="endDate"
-                          onChange={updateSelectedTripPlanField}
-                          required
-                          type="date"
-                          value={selectedTripPlanForm.endDate}
-                        />
-                      </label>
-                    </div>
+              <NotesSection
+                editingNoteId={editingNoteId}
+                errors={formErrors.note}
+                form={noteForm}
+                notes={notes}
+                onCancelEdit={cancelNoteEdit}
+                onChange={updateNoteField}
+                onDelete={deleteNote}
+                onEdit={editNote}
+                onSubmit={submitNote}
+              />
 
-                    <label className="field">
-                      <span className="field-label">Planirani budzet</span>
-                      <input
-                        className="input"
-                        min="0"
-                        name="plannedBudget"
-                        onChange={updateSelectedTripPlanField}
-                        step="0.01"
-                        type="number"
-                        value={selectedTripPlanForm.plannedBudget}
-                      />
-                    </label>
-
-                    <label className="field">
-                      <span className="field-label">Napomene</span>
-                      <textarea
-                        className="textarea"
-                        name="notes"
-                        onChange={updateSelectedTripPlanField}
-                        rows={3}
-                        value={selectedTripPlanForm.notes}
-                      />
-                    </label>
-
-                    <div className="button-row">
-                      <button className="btn btn-primary" type="submit">
-                        Sacuvaj osnovne podatke
-                      </button>
-                      <button className="btn btn-secondary" onClick={resetSelectedTripPlanForm} type="button">
-                        Vrati vrednosti
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </section>
-
-              <section className="section-card">
-                <div className="section-header">
-                  <div>
-                    <h2 className="section-title">Destinacije</h2>
-                    <p className="section-subtitle">Gradovi i mesta koja ulaze u plan.</p>
-                  </div>
-                  <span className="badge">{destinations.length}</span>
-                </div>
-
-                <form className="form-grid" onSubmit={submitDestination}>
-                  <div className="form-row">
-                    <label className="field">
-                      <span className="field-label">Naziv</span>
-                      <input
-                        className="input"
-                        name="name"
-                        onChange={updateDestinationField}
-                        placeholder="Atina"
-                        required
-                        value={destinationForm.name}
-                      />
-                    </label>
-                    <label className="field">
-                      <span className="field-label">Lokacija</span>
-                      <input
-                        className="input"
-                        name="location"
-                        onChange={updateDestinationField}
-                        placeholder="Grcka"
-                        value={destinationForm.location}
-                      />
-                    </label>
-                  </div>
-
-                  <div className="form-row">
-                    <label className="field">
-                      <span className="field-label">Datum dolaska</span>
-                      <input
-                        className="input"
-                        name="arrivalDate"
-                        onChange={updateDestinationField}
-                        required
-                        type="date"
-                        value={destinationForm.arrivalDate}
-                      />
-                    </label>
-                    <label className="field">
-                      <span className="field-label">Datum odlaska</span>
-                      <input
-                        className="input"
-                        name="departureDate"
-                        onChange={updateDestinationField}
-                        required
-                        type="date"
-                        value={destinationForm.departureDate}
-                      />
-                    </label>
-                  </div>
-
-                  <label className="field">
-                    <span className="field-label">Opis</span>
-                    <textarea
-                      className="textarea"
-                      name="description"
-                      onChange={updateDestinationField}
-                      placeholder="Smestaj, prevoz ili kratka napomena"
-                      rows={3}
-                      value={destinationForm.description}
-                    />
-                  </label>
-
-                  <div className="button-row">
-                    <button className="btn btn-primary" type="submit">
-                      {editingDestinationId ? "Sacuvaj destinaciju" : "Dodaj destinaciju"}
-                    </button>
-                    {editingDestinationId ? (
-                      <button className="btn btn-secondary" onClick={cancelDestinationEdit} type="button">
-                        Odustani
-                      </button>
-                    ) : null}
-                  </div>
-                </form>
-
-                <div className="item-list">
-                  {sortedDestinations.map((destination) => (
-                    <article className="list-item" key={destination.id}>
-                      <div className="list-item-main">
-                        <span className="list-item-title">{destination.name}</span>
-                        <p className="muted">
-                          {destination.location ? `${destination.location} - ` : ""}
-                          {formatDateRange(destination.arrivalDate, destination.departureDate)}
-                        </p>
-                        {destination.description ? (
-                          <p className="list-item-description">{destination.description}</p>
-                        ) : null}
-                      </div>
-                      <div className="list-item-actions">
-                        <button className="btn btn-secondary btn-small" onClick={() => editDestination(destination)} type="button">
-                          Izmeni
-                        </button>
-                        <button
-                          className="btn btn-danger-soft btn-small"
-                          onClick={() => deleteDestination(destination.id)}
-                          type="button"
-                        >
-                          Obrisi
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                  {destinations.length === 0 ? <div className="empty-state">Nema dodatih destinacija.</div> : null}
-                </div>
-              </section>
-
-              <section className="section-card">
-                <div className="section-header">
-                  <div>
-                    <h2 className="section-title">Aktivnosti</h2>
-                    <p className="section-subtitle">Sortirano po datumima.</p>
-                  </div>
-                  <span className="badge">{activities.length}</span>
-                </div>
-
-                <form className="form-grid" onSubmit={submitActivity}>
-                  <label className="field">
-                    <span className="field-label">Naziv aktivnosti</span>
-                    <input
-                      className="input"
-                      name="title"
-                      onChange={updateActivityField}
-                      placeholder="Obilazak muzeja"
-                      required
-                      value={activityForm.title}
-                    />
-                  </label>
-
-                  <div className="form-row">
-                    <label className="field">
-                      <span className="field-label">Datum</span>
-                      <input
-                        className="input"
-                        name="activityDate"
-                        onChange={updateActivityField}
-                        required
-                        type="date"
-                        value={activityForm.activityDate}
-                      />
-                    </label>
-                    <label className="field">
-                      <span className="field-label">Vreme</span>
-                      <input
-                        className="input"
-                        name="activityTime"
-                        onChange={updateActivityField}
-                        type="time"
-                        value={activityForm.activityTime}
-                      />
-                    </label>
-                  </div>
-
-                  <div className="form-row">
-                    <label className="field">
-                      <span className="field-label">Lokacija</span>
-                      <input
-                        className="input"
-                        name="location"
-                        onChange={updateActivityField}
-                        placeholder="Centar grada"
-                        value={activityForm.location}
-                      />
-                    </label>
-                    <label className="field">
-                      <span className="field-label">Status</span>
-                      <select className="select" name="status" onChange={updateActivityField} value={activityForm.status}>
-                        {activityStatuses.map((status) => (
-                          <option key={status.value} value={status.value}>
-                            {status.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  <label className="field">
-                    <span className="field-label">Procenjeni trosak</span>
-                    <input
-                      className="input"
-                      min="0"
-                      name="estimatedCost"
-                      onChange={updateActivityField}
-                      step="0.01"
-                      type="number"
-                      value={activityForm.estimatedCost}
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span className="field-label">Opis</span>
-                    <textarea
-                      className="textarea"
-                      name="description"
-                      onChange={updateActivityField}
-                      placeholder="Kratka napomena za aktivnost"
-                      rows={3}
-                      value={activityForm.description}
-                    />
-                  </label>
-
-                  <div className="button-row">
-                    <button className="btn btn-primary" type="submit">
-                      {editingActivityId ? "Sacuvaj aktivnost" : "Dodaj aktivnost"}
-                    </button>
-                    {editingActivityId ? (
-                      <button className="btn btn-secondary" onClick={cancelActivityEdit} type="button">
-                        Odustani
-                      </button>
-                    ) : null}
-                  </div>
-                </form>
-
-                <div className="activity-view-toggle" aria-label="Prikaz aktivnosti" role="group">
-                  <button
-                    aria-pressed={activityViewMode === "list"}
-                    className={`btn btn-small btn-toggle${activityViewMode === "list" ? " is-active" : ""}`}
-                    onClick={() => setActivityViewMode("list")}
-                    type="button"
-                  >
-                    Lista
-                  </button>
-                  <button
-                    aria-pressed={activityViewMode === "calendar"}
-                    className={`btn btn-small btn-toggle${activityViewMode === "calendar" ? " is-active" : ""}`}
-                    onClick={() => setActivityViewMode("calendar")}
-                    type="button"
-                  >
-                    Kalendar
-                  </button>
-                </div>
-
-                {activityViewMode === "list" ? (
-                  <div className="item-list">
-                    {activityGroups.map(([dateKey, groupActivities]) => (
-                      <div className="activity-day" key={dateKey}>
-                        <h3 className="activity-day-title">
-                          {dateKey === "no-date" ? "Bez datuma" : formatDate(groupActivities[0]?.activityDate)}
-                        </h3>
-                        {groupActivities.map((activity) => (
-                          <article className="list-item" key={activity.id}>
-                            <div className="list-item-main">
-                              <span className="list-item-title">{activity.title}</span>
-                              <p className="muted">
-                                {activity.activityTime ? `${String(activity.activityTime).slice(0, 5)} - ` : ""}
-                                {activity.location || "Bez lokacije"}
-                              </p>
-                              <p className="muted">
-                                <span className={`badge ${getStatusClass(activity.status)}`}>
-                                  {getStatusLabel(activity.status)}
-                                </span>{" "}
-                                {formatMoney(activity.estimatedCost)}
-                              </p>
-                              {activity.description ? <p className="list-item-description">{activity.description}</p> : null}
-                            </div>
-                            <div className="list-item-actions">
-                              <button className="btn btn-secondary btn-small" onClick={() => editActivity(activity)} type="button">
-                                Izmeni
-                              </button>
-                              <button
-                                className="btn btn-danger-soft btn-small"
-                                onClick={() => deleteActivity(activity.id)}
-                                type="button"
-                              >
-                                Obrisi
-                              </button>
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    ))}
-                    {activities.length === 0 ? <div className="empty-state">Nema dodatih aktivnosti.</div> : null}
-                  </div>
-                ) : (
-                  <ActivityCalendar days={activityCalendarDays} emptyMessage="Nema dodatih aktivnosti." />
-                )}
-              </section>
-
-              <section className="section-card">
-                <div className="section-header">
-                  <div>
-                    <h2 className="section-title">Troskovi i budzet</h2>
-                    <p className="section-subtitle">Transport, smestaj, hrana, karte i ostalo.</p>
-                  </div>
-                  <span className="badge">{expenses.length}</span>
-                </div>
-
-                <div className="overview-grid">
-                  <span className="stat-tile">
-                    <span className="stat-label">Planirani budzet</span>
-                    <span className="stat-value">
-                      {formatMoney(budgetSummary?.plannedBudget ?? selectedTripPlan.plannedBudget)}
-                    </span>
-                  </span>
-                  <span className="stat-tile">
-                    <span className="stat-label">Ukupno potroseno</span>
-                    <span className="stat-value">{formatMoney(budgetSummary?.totalExpenses)}</span>
-                  </span>
-                  <span className="stat-tile">
-                    <span className="stat-label">Preostali budzet</span>
-                    <span className="stat-value">
-                      {formatMoney(budgetSummary?.remainingBudget ?? selectedTripPlan.plannedBudget)}
-                    </span>
-                  </span>
-                </div>
-
-                <form className="form-grid" onSubmit={submitExpense}>
-                  <label className="field">
-                    <span className="field-label">Naziv troska</span>
-                    <input
-                      className="input"
-                      name="title"
-                      onChange={updateExpenseField}
-                      placeholder="Avionska karta"
-                      required
-                      value={expenseForm.title}
-                    />
-                  </label>
-
-                  <div className="form-row">
-                    <label className="field">
-                      <span className="field-label">Kategorija</span>
-                      <select
-                        className="select"
-                        name="category"
-                        onChange={updateExpenseField}
-                        required
-                        value={expenseForm.category}
-                      >
-                        {EXPENSE_CATEGORIES.map((category) => (
-                          <option key={category.value} value={category.value}>
-                            {category.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span className="field-label">Iznos</span>
-                      <input
-                        className="input"
-                        min="0"
-                        name="amount"
-                        onChange={updateExpenseField}
-                        required
-                        step="0.01"
-                        type="number"
-                        value={expenseForm.amount}
-                      />
-                    </label>
-                  </div>
-
-                  <label className="field">
-                    <span className="field-label">Datum</span>
-                    <input
-                      className="input"
-                      name="expenseDate"
-                      onChange={updateExpenseField}
-                      required
-                      type="date"
-                      value={expenseForm.expenseDate}
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span className="field-label">Opis</span>
-                    <textarea
-                      className="textarea"
-                      name="description"
-                      onChange={updateExpenseField}
-                      placeholder="Napomena za trosak"
-                      rows={3}
-                      value={expenseForm.description}
-                    />
-                  </label>
-
-                  <div className="button-row">
-                    <button className="btn btn-primary" type="submit">
-                      {editingExpenseId ? "Sacuvaj trosak" : "Dodaj trosak"}
-                    </button>
-                    {editingExpenseId ? (
-                      <button className="btn btn-secondary" onClick={cancelExpenseEdit} type="button">
-                        Odustani
-                      </button>
-                    ) : null}
-                  </div>
-                </form>
-
-                <div className="item-list">
-                  {expenses.map((expense) => (
-                    <article className="list-item" key={expense.id}>
-                      <div className="list-item-main">
-                        <span className="list-item-title">{expense.title}</span>
-                        <p className="muted">
-                          {getExpenseCategoryLabel(expense.category)} - {formatDate(expense.expenseDate)}
-                        </p>
-                        <p className="muted">{formatMoney(expense.amount)}</p>
-                        {expense.description ? <p className="list-item-description">{expense.description}</p> : null}
-                      </div>
-                      <div className="list-item-actions">
-                        <button className="btn btn-secondary btn-small" onClick={() => editExpense(expense)} type="button">
-                          Izmeni
-                        </button>
-                        <button
-                          className="btn btn-danger-soft btn-small"
-                          onClick={() => deleteExpense(expense.id)}
-                          type="button"
-                        >
-                          Obrisi
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                  {expenses.length === 0 ? <div className="empty-state">Nema dodatih troskova.</div> : null}
-                </div>
-              </section>
-
-              <section className="section-card">
-                <div className="section-header">
-                  <div>
-                    <h2 className="section-title">Checklist</h2>
-                    <p className="section-subtitle">Stavke za pakovanje i pripremu.</p>
-                  </div>
-                  <span className="badge">{checklistItems.length}</span>
-                </div>
-
-                <form className="form-grid" onSubmit={submitChecklistItem}>
-                  <label className="field">
-                    <span className="field-label">Nova stavka</span>
-                    <input
-                      className="input"
-                      maxLength={150}
-                      name="title"
-                      onChange={updateChecklistField}
-                      placeholder="pasos, karta, punjac, putno osiguranje"
-                      required
-                      value={checklistForm.title}
-                    />
-                  </label>
-
-                  <div className="button-row">
-                    <button className="btn btn-primary" type="submit">
-                      {editingChecklistItemId ? "Sacuvaj stavku" : "Dodaj stavku"}
-                    </button>
-                    {editingChecklistItemId ? (
-                      <button className="btn btn-secondary" onClick={cancelChecklistEdit} type="button">
-                        Odustani
-                      </button>
-                    ) : null}
-                  </div>
-                </form>
-
-                <div className="item-list">
-                  {checklistItems.map((checklistItem) => (
-                    <article className="list-item checklist-item" key={checklistItem.id}>
-                      <label className="checklist-label">
-                        <input
-                          checked={Boolean(checklistItem.isCompleted)}
-                          onChange={(event) => toggleChecklistItem(checklistItem, event.target.checked)}
-                          type="checkbox"
-                        />
-                        <span className={`checklist-title${checklistItem.isCompleted ? " is-done" : ""}`}>
-                          {checklistItem.title}
-                        </span>
-                      </label>
-                      <div className="list-item-actions">
-                        <button className="btn btn-secondary btn-small" onClick={() => editChecklistItem(checklistItem)} type="button">
-                          Izmeni
-                        </button>
-                        <button
-                          className="btn btn-danger-soft btn-small"
-                          onClick={() => deleteChecklistItem(checklistItem.id)}
-                          type="button"
-                        >
-                          Obrisi
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                  {checklistItems.length === 0 ? <div className="empty-state">Checklist je prazan.</div> : null}
-                </div>
-              </section>
-
-              <section className="section-card">
-                <div className="section-header">
-                  <div>
-                    <h2 className="section-title">Beleske</h2>
-                    <p className="section-subtitle">Kratke napomene vezane za izabrani plan.</p>
-                  </div>
-                  <span className="badge">{notes.length}</span>
-                </div>
-
-                <form className="form-grid" onSubmit={submitNote}>
-                  <label className="field">
-                    <span className="field-label">Naslov</span>
-                    <input
-                      className="input"
-                      maxLength={150}
-                      name="title"
-                      onChange={updateNoteField}
-                      placeholder="Rezervacije, ideje, bitni kontakti"
-                      required
-                      value={noteForm.title}
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span className="field-label">Sadrzaj</span>
-                    <textarea
-                      className="textarea"
-                      name="content"
-                      onChange={updateNoteField}
-                      placeholder="Tekst beleske"
-                      rows={3}
-                      value={noteForm.content}
-                    />
-                  </label>
-
-                  <div className="button-row">
-                    <button className="btn btn-primary" type="submit">
-                      {editingNoteId ? "Sacuvaj belesku" : "Dodaj belesku"}
-                    </button>
-                    {editingNoteId ? (
-                      <button className="btn btn-secondary" onClick={cancelNoteEdit} type="button">
-                        Odustani
-                      </button>
-                    ) : null}
-                  </div>
-                </form>
-
-                <div className="item-list">
-                  {notes.map((note) => (
-                    <article className="list-item" key={note.id}>
-                      <div className="list-item-main">
-                        <span className="list-item-title">{note.title}</span>
-                        <p className="muted">
-                          {note.updatedAt ? `Izmenjeno: ${formatDateTime(note.updatedAt)}` : `Kreirano: ${formatDateTime(note.createdAt)}`}
-                        </p>
-                        {note.content ? <p className="list-item-description">{note.content}</p> : null}
-                      </div>
-                      <div className="list-item-actions">
-                        <button className="btn btn-secondary btn-small" onClick={() => editNote(note)} type="button">
-                          Izmeni
-                        </button>
-                        <button className="btn btn-danger-soft btn-small" onClick={() => deleteNote(note.id)} type="button">
-                          Obrisi
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                  {notes.length === 0 ? <div className="empty-state">Nema dodatih beleski.</div> : null}
-                </div>
-              </section>
-
-              <section className="section-card">
-                <div className="section-header">
-                  <div>
-                    <h2 className="section-title">Deljenje</h2>
-                    <p className="section-subtitle">Kreiranje i opoziv javnih linkova.</p>
-                  </div>
-                  <span className="badge">{shares.length}</span>
-                </div>
-
-                <div className="access-help">
-                  <strong>VIEW</strong>: samo pregled. <strong>EDIT</strong>: moze izmeniti osnovne podatke plana.
-                </div>
-
-                <form className="form-grid" onSubmit={createShare}>
-                  <div className="form-row">
-                    <label className="field">
-                      <span className="field-label">AccessLevel</span>
-                      <select
-                        className="select"
-                        onChange={(event) => setShareAccessLevel(Number(event.target.value))}
-                        value={shareAccessLevel}
-                      >
-                        {SHARE_ACCESS_LEVEL_OPTIONS.map((accessLevel) => (
-                          <option key={accessLevel.value} value={accessLevel.value}>
-                            {accessLevel.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span className="field-label">Datum isteka</span>
-                      <input
-                        className="input"
-                        min={todayDateInput()}
-                        onChange={(event) => setShareExpiresAt(event.target.value)}
-                        type="date"
-                        value={shareExpiresAt}
-                      />
-                    </label>
-                  </div>
-
-                  <button className="btn btn-primary" type="submit">
-                    Kreiraj link
-                  </button>
-                </form>
-
-                {generatedShareLink ? (
-                  <div className="generated-share">
-                    <p className="link-box">
-                      Novi link:{" "}
-                      <a href={generatedShareLink} rel="noreferrer" target="_blank">
-                        {generatedShareLink}
-                      </a>
-                    </p>
-                    <ShareQrCode value={generatedShareLink} />
-                  </div>
-                ) : null}
-
-                <div className="item-list">
-                  {shares.map((share) => {
-                    const shareLink = buildSharedTripPlanLink(share.token);
-                    const isQrVisible = visibleShareQrId === share.id;
-
-                    return (
-                      <article className="list-item" key={share.id}>
-                        <div className="list-item-main">
-                          <span className="list-item-title">{getShareAccessLevelLabel(share.accessLevel)}</span>
-                          <span className={`badge ${share.isRevoked ? "badge-danger" : "badge-success"}`}>
-                            {share.isRevoked ? "Revoked" : "Active"}
-                          </span>
-                          <p className="muted">Created: {formatDateTime(share.createdAt)}</p>
-                          {share.expiresAt ? <p className="muted">Expires: {formatDateTime(share.expiresAt)}</p> : null}
-                          <p className="share-token">{share.token}</p>
-                          {!share.isRevoked ? (
-                            <a className="breakable" href={shareLink} rel="noreferrer" target="_blank">
-                              {shareLink}
-                            </a>
-                          ) : null}
-                          {!share.isRevoked && isQrVisible ? <ShareQrCode value={shareLink} /> : null}
-                        </div>
-                        {!share.isRevoked ? (
-                          <div className="list-item-actions">
-                            <button
-                              className="btn btn-secondary btn-small"
-                              onClick={() => setVisibleShareQrId(isQrVisible ? null : share.id)}
-                              type="button"
-                            >
-                              {isQrVisible ? "Sakrij QR" : "Prikazi QR"}
-                            </button>
-                            <button className="btn btn-danger-soft btn-small" onClick={() => revokeShare(share.id)} type="button">
-                              Opozovi
-                            </button>
-                          </div>
-                        ) : null}
-                      </article>
-                    );
-                  })}
-                  {shares.length === 0 ? <div className="empty-state">Nema kreiranih share tokena.</div> : null}
-                </div>
-              </section>
+              <SharingSection
+                errors={formErrors.share}
+                generatedShareLink={generatedShareLink}
+                onAccessLevelChange={updateShareAccessLevel}
+                onExpiresAtChange={updateShareExpiresAt}
+                onRevoke={revokeShare}
+                onSubmit={createShare}
+                onToggleQr={setVisibleShareQrId}
+                shareAccessLevel={shareAccessLevel}
+                shareExpiresAt={shareExpiresAt}
+                shares={shares}
+                visibleShareQrId={visibleShareQrId}
+              />
             </>
           ) : (
-            <div className="empty-state">Kreiraj novi plan ili otvori detalje postojeceg plana.</div>
+            <EmptyState>Kreiraj novi plan ili otvori detalje postojeceg plana.</EmptyState>
           )}
         </section>
       </section>
-    </div>
-  );
-}
-
-function ShareQrCode({ value }) {
-  return (
-    <div className="share-qr-card">
-      <div className="share-qr-code">
-        <QRCodeSVG includeMargin level="M" size={132} title="QR kod za deljeni plan" value={value} />
-      </div>
-      <p>Skeniraj QR kod za otvaranje deljenog plana.</p>
     </div>
   );
 }
@@ -1696,6 +1151,10 @@ function toDateTime(dateValue) {
   return dateValue ? `${dateValue}T00:00:00` : null;
 }
 
+function toDateTimeLocalValue(dateTimeValue) {
+  return dateTimeValue ? `${dateTimeValue}:00` : null;
+}
+
 function toExpirationDateTime(dateValue) {
   return dateValue ? `${dateValue}T23:59:59` : null;
 }
@@ -1716,83 +1175,14 @@ function toTimeInputValue(value) {
   return String(value).slice(0, 5);
 }
 
-function todayDateInput() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function compareDates(firstValue, secondValue) {
-  const firstTime = firstValue ? new Date(firstValue).getTime() : Number.MAX_SAFE_INTEGER;
-  const secondTime = secondValue ? new Date(secondValue).getTime() : Number.MAX_SAFE_INTEGER;
-
-  return firstTime - secondTime;
-}
-
-function formatDate(value) {
+function toDateTimeInputValue(value) {
   if (!value) {
     return "";
   }
 
-  return new Date(value).toLocaleDateString();
+  return String(value).slice(0, 16);
 }
 
-function formatDateTime(value) {
-  if (!value) {
-    return "";
-  }
-
-  return new Date(value).toLocaleString();
-}
-
-function formatDateRange(startDate, endDate) {
-  const formattedStartDate = formatDate(startDate);
-  const formattedEndDate = formatDate(endDate);
-
-  if (formattedStartDate && formattedEndDate) {
-    return `${formattedStartDate} - ${formattedEndDate}`;
-  }
-
-  return formattedStartDate || formattedEndDate || "Bez datuma";
-}
-
-function formatMoney(value) {
-  return Number(value ?? 0).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function getStatusLabel(value) {
-  const numericValue = Number(value);
-  return activityStatuses.find((status) => status.value === numericValue)?.label ?? "Planned";
-}
-
-function getStatusClass(value) {
-  const numericValue = Number(value);
-
-  if (numericValue === 1) {
-    return "status-reserved";
-  }
-
-  if (numericValue === 2) {
-    return "status-completed";
-  }
-
-  if (numericValue === 3) {
-    return "status-cancelled";
-  }
-
-  return "status-planned";
-}
-
-function getExpenseCategoryLabel(value) {
-  const numericValue = Number(value);
-  return EXPENSE_CATEGORIES.find((category) => category.value === numericValue)?.label ?? "Other";
-}
-
-function getShareAccessLevelLabel(value) {
-  return Number(value) === SHARE_ACCESS_LEVELS.EDIT ? "EDIT" : "VIEW";
-}
-
-function buildSharedTripPlanLink(token) {
-  return `${window.location.origin}/shared/${token}`;
+function getRequestErrorMessage(requestError) {
+  return requestError?.message || "Doslo je do greske.";
 }

@@ -10,6 +10,7 @@ using Microsoft.ServiceFabric.Services.Remoting.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
 using TravelPlanner.Contracts.Auth;
 using TravelPlanner.Contracts.Common;
+using TravelPlanner.Contracts.Enums;
 using TravelPlanner.Contracts.Interfaces;
 using TravelPlanner.Contracts.Users;
 
@@ -127,6 +128,96 @@ namespace IdentityService
             }
         }
 
+        public async Task<OperationResultDto> ChangeUserRoleAsync(Guid userId, ChangeUserRoleRequest request)
+        {
+            if (request is null)
+            {
+                return ResultFailure("Role request is required.");
+            }
+
+            if (userId == Guid.Empty)
+            {
+                return ResultFailure("User id is invalid.");
+            }
+
+            var roleName = NormalizeRoleName(request.Role);
+            if (roleName is null)
+            {
+                return ResultFailure("Role must be User or Admin.");
+            }
+
+            try
+            {
+                var user = await userRepository.GetByIdAsync(userId);
+                if (user is null)
+                {
+                    return ResultFailure("User was not found.");
+                }
+
+                if (!await userRepository.RoleExistsAsync(roleName))
+                {
+                    return ResultFailure("Requested role does not exist.");
+                }
+
+                var userIsAdmin = user.Roles.Any(role =>
+                    string.Equals(role.Name, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase));
+
+                if (userIsAdmin && roleName != UserRole.Admin.ToString())
+                {
+                    var adminCount = await userRepository.CountUsersInRoleAsync(UserRole.Admin.ToString());
+                    if (adminCount <= 1)
+                    {
+                        return ResultFailure("Cannot remove the last admin role.");
+                    }
+                }
+
+                var changed = await userRepository.SetUserRoleAsync(userId, roleName);
+                return changed ? ResultSuccess("User role changed.") : ResultFailure("User role was not changed.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                ServiceEventSource.Current.ServiceMessage(Context, "Identity user role change failed: {0}", exception.Message);
+                return ResultFailure(exception.Message);
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteUserAsync(Guid userId)
+        {
+            if (userId == Guid.Empty)
+            {
+                return ResultFailure("User id is invalid.");
+            }
+
+            try
+            {
+                var user = await userRepository.GetByIdAsync(userId);
+                if (user is null)
+                {
+                    return ResultFailure("User was not found.");
+                }
+
+                var userIsAdmin = user.Roles.Any(role =>
+                    string.Equals(role.Name, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase));
+
+                if (userIsAdmin)
+                {
+                    var adminCount = await userRepository.CountUsersInRoleAsync(UserRole.Admin.ToString());
+                    if (adminCount <= 1)
+                    {
+                        return ResultFailure("Cannot delete the last admin user.");
+                    }
+                }
+
+                var deleted = await userRepository.DeleteUserAsync(userId);
+                return deleted ? ResultSuccess("User deleted.") : ResultFailure("User was not deleted.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                ServiceEventSource.Current.ServiceMessage(Context, "Identity user delete failed: {0}", exception.Message);
+                return ResultFailure(exception.Message);
+            }
+        }
+
         private AuthResponseDto Success(Models.UserRecord user)
         {
             var token = jwtTokenService.CreateToken(user);
@@ -154,6 +245,40 @@ namespace IdentityService
                     Message = message,
                     Errors = errors ?? new List<ValidationErrorDto>()
                 }
+            };
+        }
+
+        private static string? NormalizeRoleName(string? role)
+        {
+            var trimmedRole = role?.Trim();
+            if (string.Equals(trimmedRole, UserRole.User.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                return UserRole.User.ToString();
+            }
+
+            if (string.Equals(trimmedRole, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                return UserRole.Admin.ToString();
+            }
+
+            return null;
+        }
+
+        private static OperationResultDto ResultSuccess(string message)
+        {
+            return new OperationResultDto
+            {
+                Succeeded = true,
+                Message = message
+            };
+        }
+
+        private static OperationResultDto ResultFailure(string message)
+        {
+            return new OperationResultDto
+            {
+                Succeeded = false,
+                Message = message
             };
         }
     }

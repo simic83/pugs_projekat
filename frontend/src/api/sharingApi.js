@@ -31,4 +31,119 @@ export const sharingApi = {
       skipAuth: true,
     });
   },
+
+  createSharedDestination(token, request) {
+    return apiRequest(`/api/shares/${token}/destinations`, {
+      method: "POST",
+      body: request,
+      skipAuth: true,
+    });
+  },
+
+  updateSharedDestination(token, destinationId, request) {
+    return apiRequest(`/api/shares/${token}/destinations/${destinationId}`, {
+      method: "PUT",
+      body: request,
+      skipAuth: true,
+    });
+  },
+
+  deleteSharedDestination(token, destinationId) {
+    return apiRequest(`/api/shares/${token}/destinations/${destinationId}`, {
+      method: "DELETE",
+      skipAuth: true,
+    });
+  },
+
+  createSharedActivity(token, request) {
+    return apiRequest(`/api/shares/${token}/activities`, {
+      method: "POST",
+      body: request,
+      skipAuth: true,
+    });
+  },
+
+  updateSharedActivity(token, activityId, request) {
+    return apiRequest(`/api/shares/${token}/activities/${activityId}`, {
+      method: "PUT",
+      body: request,
+      skipAuth: true,
+    });
+  },
+
+  deleteSharedActivity(token, activityId) {
+    return apiRequest(`/api/shares/${token}/activities/${activityId}`, {
+      method: "DELETE",
+      skipAuth: true,
+    });
+  },
+
+  createSharedExpense(token, request) {
+    return apiRequest(`/api/shares/${token}/expenses`, {
+      method: "POST",
+      body: request,
+      skipAuth: true,
+    });
+  },
+
+  updateSharedExpense(token, expenseId, request) {
+    return apiRequest(`/api/shares/${token}/expenses/${expenseId}`, {
+      method: "PUT",
+      body: request,
+      skipAuth: true,
+    });
+  },
+
+  deleteSharedExpense(token, expenseId) {
+    return apiRequest(`/api/shares/${token}/expenses/${expenseId}`, {
+      method: "DELETE",
+      skipAuth: true,
+    });
+  },
+
+  createSharedChecklistItem(token, request) {
+    return apiRequest(`/api/shares/${token}/checklist-items`, {
+      method: "POST",
+      body: request,
+      skipAuth: true,
+    });
+  },
+
+  updateSharedChecklistItem(token, checklistItemId, request) {
+    return apiRequest(`/api/shares/${token}/checklist-items/${checklistItemId}`, {
+      method: "PUT",
+      body: request,
+      skipAuth: true,
+    });
+  },
+
+  deleteSharedChecklistItem(token, checklistItemId) {
+    return apiRequest(`/api/shares/${token}/checklist-items/${checklistItemId}`, {
+      method: "DELETE",
+      skipAuth: true,
+    });
+  },
+
+  createSharedNote(token, request) {
+    return apiRequest(`/api/shares/${token}/notes`, {
+      method: "POST",
+      body: request,
+      skipAuth: true,
+    });
+  },
+
+  updateSharedNote(token, noteId, request) {
+    return apiRequest(`/api/shares/${token}/notes/${noteId}`, {
+      method: "PUT",
+      body: request,
+      skipAuth: true,
+    });
+  },
+
+  deleteSharedNote(token, noteId) {
+    return apiRequest(`/api/shares/${token}/notes/${noteId}`, {
+      method: "DELETE",
+      skipAuth: true,
+    });
+  },
 };

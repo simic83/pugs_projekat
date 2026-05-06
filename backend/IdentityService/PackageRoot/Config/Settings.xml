@@ -4,9 +4,9 @@
     <Parameter Name="DefaultConnection" Value="" />
   </Section>
   <Section Name="Jwt">
-    <Parameter Name="Secret" Value="" />
-    <Parameter Name="Issuer" Value="" />
-    <Parameter Name="Audience" Value="" />
+    <Parameter Name="Secret" Value="CHANGE_ME_LOCAL_JWT_SECRET_32_CHARS_MINIMUM" />
+    <Parameter Name="Issuer" Value="TravelPlanner.Local" />
+    <Parameter Name="Audience" Value="TravelPlanner.Frontend" />
     <Parameter Name="ExpirationMinutes" Value="60" />
   </Section>
 </Settings>

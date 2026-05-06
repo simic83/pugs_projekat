@@ -1,27 +1,91 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <ApplicationManifest xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ApplicationTypeName="TravelPlannerType" ApplicationTypeVersion="1.0.0" xmlns="http://schemas.microsoft.com/2011/01/fabric">
-  <Parameters />
+  <Parameters>
+    <Parameter Name="Identity_DefaultConnection" DefaultValue="" />
+    <Parameter Name="Identity_JwtSecret" DefaultValue="CHANGE_ME_LOCAL_JWT_SECRET_32_CHARS_MINIMUM" />
+    <Parameter Name="Identity_JwtIssuer" DefaultValue="TravelPlanner.Local" />
+    <Parameter Name="Identity_JwtAudience" DefaultValue="TravelPlanner.Frontend" />
+    <Parameter Name="Identity_JwtExpirationMinutes" DefaultValue="60" />
+    <Parameter Name="ApiGateway_JwtSecret" DefaultValue="CHANGE_ME_LOCAL_JWT_SECRET_32_CHARS_MINIMUM" />
+    <Parameter Name="ApiGateway_JwtIssuer" DefaultValue="TravelPlanner.Local" />
+    <Parameter Name="ApiGateway_JwtAudience" DefaultValue="TravelPlanner.Frontend" />
+    <Parameter Name="ApiGateway_AllowDevUserHeaderFallback" DefaultValue="false" />
+    <Parameter Name="TripPlanning_DefaultConnection" DefaultValue="" />
+    <Parameter Name="Budget_DefaultConnection" DefaultValue="" />
+    <Parameter Name="Sharing_DefaultConnection" DefaultValue="" />
+  </Parameters>
   <!-- Import the ServiceManifest from the ServicePackage. The ServiceManifestName and ServiceManifestVersion 
        should match the Name and Version attributes of the ServiceManifest element defined in the 
        ServiceManifest.xml file. -->
   <ServiceManifestImport>
     <ServiceManifestRef ServiceManifestName="SharingServicePkg" ServiceManifestVersion="1.0.0" />
-    <ConfigOverrides />
+    <ConfigOverrides>
+      <ConfigOverride Name="Config">
+        <Settings>
+          <Section Name="ConnectionStrings">
+            <Parameter Name="DefaultConnection" Value="[Sharing_DefaultConnection]" />
+          </Section>
+        </Settings>
+      </ConfigOverride>
+    </ConfigOverrides>
   </ServiceManifestImport>
   <ServiceManifestImport>
     <ServiceManifestRef ServiceManifestName="BudgetServicePkg" ServiceManifestVersion="1.0.0" />
-    <ConfigOverrides />
+    <ConfigOverrides>
+      <ConfigOverride Name="Config">
+        <Settings>
+          <Section Name="ConnectionStrings">
+            <Parameter Name="DefaultConnection" Value="[Budget_DefaultConnection]" />
+          </Section>
+        </Settings>
+      </ConfigOverride>
+    </ConfigOverrides>
   </ServiceManifestImport>
   <ServiceManifestImport>
     <ServiceManifestRef ServiceManifestName="TripPlanningServicePkg" ServiceManifestVersion="1.0.0" />
-    <ConfigOverrides />
+    <ConfigOverrides>
+      <ConfigOverride Name="Config">
+        <Settings>
+          <Section Name="ConnectionStrings">
+            <Parameter Name="DefaultConnection" Value="[TripPlanning_DefaultConnection]" />
+          </Section>
+        </Settings>
+      </ConfigOverride>
+    </ConfigOverrides>
   </ServiceManifestImport>
   <ServiceManifestImport>
     <ServiceManifestRef ServiceManifestName="IdentityServicePkg" ServiceManifestVersion="1.0.0" />
-    <ConfigOverrides />
+    <ConfigOverrides>
+      <ConfigOverride Name="Config">
+        <Settings>
+          <Section Name="ConnectionStrings">
+            <Parameter Name="DefaultConnection" Value="[Identity_DefaultConnection]" />
+          </Section>
+          <Section Name="Jwt">
+            <Parameter Name="Secret" Value="[Identity_JwtSecret]" />
+            <Parameter Name="Issuer" Value="[Identity_JwtIssuer]" />
+            <Parameter Name="Audience" Value="[Identity_JwtAudience]" />
+            <Parameter Name="ExpirationMinutes" Value="[Identity_JwtExpirationMinutes]" />
+          </Section>
+        </Settings>
+      </ConfigOverride>
+    </ConfigOverrides>
   </ServiceManifestImport>
   <ServiceManifestImport>
     <ServiceManifestRef ServiceManifestName="ApiGatewayServicePkg" ServiceManifestVersion="1.0.0" />
-    <ConfigOverrides />
+    <ConfigOverrides>
+      <ConfigOverride Name="Config">
+        <Settings>
+          <Section Name="Jwt">
+            <Parameter Name="Secret" Value="[ApiGateway_JwtSecret]" />
+            <Parameter Name="Issuer" Value="[ApiGateway_JwtIssuer]" />
+            <Parameter Name="Audience" Value="[ApiGateway_JwtAudience]" />
+          </Section>
+          <Section Name="Authentication">
+            <Parameter Name="AllowDevUserHeaderFallback" Value="[ApiGateway_AllowDevUserHeaderFallback]" />
+          </Section>
+        </Settings>
+      </ConfigOverride>
+    </ConfigOverrides>
   </ServiceManifestImport>
 </ApplicationManifest>

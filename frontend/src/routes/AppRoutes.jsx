@@ -1,8 +1,10 @@
 import { Route, Routes } from "react-router-dom";
 import { AppLayout } from "../components/AppLayout.jsx";
+import { AdminPage } from "../pages/AdminPage.jsx";
 import { LoginPage } from "../pages/LoginPage.jsx";
 import { RegisterPage } from "../pages/RegisterPage.jsx";
 import { SharedTripPlanPage } from "../pages/SharedTripPlanPage.jsx";
+import { TripPlanReportPage } from "../pages/TripPlanReportPage.jsx";
 import { TripPlansPage } from "../pages/TripPlansPage.jsx";
 import { ProtectedRoute } from "./ProtectedRoute.jsx";
 
@@ -12,6 +14,15 @@ export function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<TripPlansPage />} />
+          <Route path="/trip-plans/:tripPlanId/report" element={<TripPlanReportPage />} />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute requireAdmin>
+                <AdminPage />
+              </ProtectedRoute>
+            }
+          />
         </Route>
       </Route>
       <Route path="/shared/:token" element={<SharedTripPlanPage />} />

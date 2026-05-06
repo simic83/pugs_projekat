@@ -1,5 +1,6 @@
 using Microsoft.ServiceFabric.Services.Remoting;
 using TravelPlanner.Contracts.Auth;
+using TravelPlanner.Contracts.Common;
 using TravelPlanner.Contracts.Users;
 
 namespace TravelPlanner.Contracts.Interfaces;
@@ -13,4 +14,8 @@ public interface IIdentityService : IService
     Task<UserDto?> GetUserByIdAsync(Guid userId);
 
     Task<List<UserDto>> GetUsersAsync();
+
+    Task<OperationResultDto> ChangeUserRoleAsync(Guid userId, ChangeUserRoleRequest request);
+
+    Task<OperationResultDto> DeleteUserAsync(Guid userId);
 }

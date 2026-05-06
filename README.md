@@ -79,10 +79,8 @@ Najbitniji frontend delovi:
 
 - LDAP/SSO nije radjen.
 - Prikaz rute na mapi nije radjen.
-- QR kod za share link nije uradjen.
 - Calendar view nije uradjen kao pravi kalendarski prikaz. Aktivnosti se prikazuju kao lista/grupisanje po datumu.
 - Admin funkcionalnosti su minimalne. Backend ima endpoint za listu korisnika za Admin rolu, ali nema posebnog kompletnog admin panela.
-- Deljeni prikaz ne prikazuje sve module plana. Trenutno prikazuje osnovne podatke, destinacije i aktivnosti; troskovi, checklist i notes nisu deo shared DTO prikaza.
 
 ## Podesavanje baze
 
@@ -92,6 +90,14 @@ SQL migracije se nalaze u:
 - `backend/database/migrations/trip-planning`
 - `backend/database/migrations/budget`
 - `backend/database/migrations/sharing`
+
+Za lokalni development moze se koristiti objedinjena skripta:
+
+- `backend/database/01_run_all_migrations.sql`
+
+Ona kreira bazu `TravelPlannerDb` ako ne postoji i pokrece sve migracije redom. Ako treba samo kreirati bazu, pokrenuti:
+
+- `backend/database/00_create_database.sql`
 
 Preporuceni redosled pokretanja migracija:
 
@@ -114,16 +120,56 @@ Za lokalno pokretanje treba podesiti:
 - JWT Audience,
 - JWT expiration.
 
-Stvarne konfiguracione putanje u projektu su:
+Service Fabric application manifest je:
+
+- `backend/TravelPlanner/ApplicationPackageRoot/ApplicationManifest.xml`
+
+Service Fabric parameter fajlovi su:
+
+- `backend/TravelPlanner/ApplicationParameters/Local.1Node.xml`
+- `backend/TravelPlanner/ApplicationParameters/Local.5Node.xml`
+- `backend/TravelPlanner/ApplicationParameters/Cloud.xml`
+
+Service `Settings.xml` fajlovi su:
 
 - `backend/IdentityService/PackageRoot/Config/Settings.xml` - `ConnectionStrings/DefaultConnection`, `Jwt/Secret`, `Jwt/Issuer`, `Jwt/Audience`, `Jwt/ExpirationMinutes`.
-- `backend/ApiGatewayService/PackageRoot/Config/Settings.xml` - `Jwt/Secret`, `Jwt/Issuer`, `Jwt/Audience`.
+- `backend/ApiGatewayService/PackageRoot/Config/Settings.xml` - `Jwt/Secret`, `Jwt/Issuer`, `Jwt/Audience`, `Authentication/AllowDevUserHeaderFallback`.
 - `backend/TripPlanningService/PackageRoot/Config/Settings.xml` - `ConnectionStrings/DefaultConnection`.
 - `backend/BudgetService/PackageRoot/Config/Settings.xml` - `ConnectionStrings/DefaultConnection`.
 - `backend/SharingService/PackageRoot/Config/Settings.xml` - `ConnectionStrings/DefaultConnection`.
-- `backend/TravelPlanner/ApplicationParameters/Local.1Node.xml` i `backend/TravelPlanner/ApplicationParameters/Local.5Node.xml` - lokalni Service Fabric application parameter fajlovi.
 
-JWT vrednosti u `IdentityService` i `ApiGatewayService` moraju biti uskladjene, jer IdentityService izdaje token, a ApiGatewayService ga validira. Pravi secret se ne cuva u repozitorijumu. Za lokalni rad treba upisati lokalni development secret dovoljne duzine i svoj SQL Server connection string.
+`ApplicationManifest.xml` mapira ove parametre u `Settings.xml`:
+
+- `Identity_DefaultConnection`
+- `Identity_JwtSecret`
+- `Identity_JwtIssuer`
+- `Identity_JwtAudience`
+- `Identity_JwtExpirationMinutes`
+- `ApiGateway_JwtSecret`
+- `ApiGateway_JwtIssuer`
+- `ApiGateway_JwtAudience`
+- `ApiGateway_AllowDevUserHeaderFallback`
+- `TripPlanning_DefaultConnection`
+- `Budget_DefaultConnection`
+- `Sharing_DefaultConnection`
+
+Za lokalni rad, `Local.1Node.xml` i `Local.5Node.xml` trenutno koriste isti primer SQL connection string-a za sve module:
+
+```text
+Server=localhost;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;
+```
+
+Ako koristite vise baza, podesite odvojene vrednosti za `Identity_DefaultConnection`, `TripPlanning_DefaultConnection`, `Budget_DefaultConnection` i `Sharing_DefaultConnection`. Ako koristite jednu bazu, isti connection string je dovoljan za sve servise.
+
+JWT vrednosti u `IdentityService` i `ApiGatewayService` moraju biti iste, jer `IdentityService` izdaje token, a `ApiGatewayService` ga validira. Konkretno, uskladiti:
+
+- `Identity_JwtSecret` i `ApiGateway_JwtSecret`
+- `Identity_JwtIssuer` i `ApiGateway_JwtIssuer`
+- `Identity_JwtAudience` i `ApiGateway_JwtAudience`
+
+JWT Secret mora imati najmanje 32 karaktera/bajta. Pravi secret se ne cuva u repozitorijumu; vrednosti `CHANGE_ME_...` su samo placeholder-i i treba ih zameniti lokalnim development vrednostima pre pokretanja.
+
+`ApiGateway_AllowDevUserHeaderFallback` je podesen na `false` i treba da ostane `false` za normalan lokalni/proizvodni rad.
 
 ## Pokretanje backend-a
 
@@ -159,6 +205,8 @@ Potrebno je napraviti lokalni `.env` prema primeru i podesiti:
 VITE_API_BASE_URL=http://localhost:8080
 ```
 
+Ako lokalni Service Fabric cluster dodeli drugi port za `ApiGatewayService` endpoint, uskladiti port u `VITE_API_BASE_URL` sa stvarnim ApiGateway HTTP endpoint-om.
+
 Za proveru produkcionog build-a:
 
 ```powershell
@@ -177,6 +225,6 @@ U migracijama postoje seed vrednosti za role `User` i `Admin`, ali ne postoje se
 - Lozinke se cuvaju hash-ovane.
 - JWT mora imati validan secret.
 - Deljeni VIEW link sluzi za pregled plana.
-- Deljeni EDIT link omogucava izmenu osnovnih podataka plana.
-- Notes modul radi za ulogovanog vlasnika plana; shared prikaz notes ostaje za kasniju fazu.
-- QR kod, mapa/ruta i pravi calendar view nisu deo trenutne implementacije.
+- Deljeni EDIT link omogucava izmenu osnovnog plana, destinacija, aktivnosti, troskova, checklist stavki i beleski.
+- QR kod je dostupan za share linkove.
+- Mapa/ruta i pravi calendar view nisu deo trenutne implementacije.

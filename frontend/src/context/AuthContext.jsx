@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { authApi } from "../api/authApi.js";
+import { USER_ROLES, getRoleNames, userHasRole } from "../models/auth.js";
 import { tokenStorage } from "../utils/tokenStorage.js";
 
 const AuthContext = createContext(null);
@@ -69,18 +70,21 @@ export function AuthProvider({ children }) {
     }
   }, [loadCurrentUser, token]);
 
-  const value = useMemo(
-    () => ({
+  const value = useMemo(() => {
+    const roles = getRoleNames(user?.roles);
+
+    return {
       user,
       token,
+      roles,
+      isAdmin: userHasRole(user, USER_ROLES.ADMIN),
       isLoading,
       login,
       register,
       logout,
       loadCurrentUser,
-    }),
-    [isLoading, loadCurrentUser, login, logout, register, token, user],
-  );
+    };
+  }, [isLoading, loadCurrentUser, login, logout, register, token, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

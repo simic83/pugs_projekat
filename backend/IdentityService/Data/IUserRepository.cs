@@ -13,4 +13,12 @@ internal interface IUserRepository
     Task<List<UserRecord>> GetUsersAsync();
 
     Task<UserRecord> CreateUserAsync(UserRecord user);
+
+    Task<bool> RoleExistsAsync(string roleName);
+
+    Task<int> CountUsersInRoleAsync(string roleName);
+
+    Task<bool> SetUserRoleAsync(Guid userId, string roleName);
+
+    Task<bool> DeleteUserAsync(Guid userId);
 }

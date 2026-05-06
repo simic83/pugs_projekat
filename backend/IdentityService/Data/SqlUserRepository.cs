@@ -101,6 +101,78 @@ internal sealed class SqlUserRepository : IUserRepository
         return created ?? user;
     }
 
+    public async Task<bool> RoleExistsAsync(string roleName)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(
+            "SELECT CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.Roles WHERE Name = @RoleName) THEN 1 ELSE 0 END AS bit);",
+            connection);
+        command.Parameters.AddWithValue("@RoleName", roleName);
+
+        var result = await command.ExecuteScalarAsync();
+        return result is bool exists && exists;
+    }
+
+    public async Task<int> CountUsersInRoleAsync(string roleName)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(
+            """
+            SELECT COUNT(DISTINCT ur.UserId)
+            FROM dbo.UserRoles ur
+            INNER JOIN dbo.Roles r ON r.RoleId = ur.RoleId
+            WHERE r.Name = @RoleName;
+            """,
+            connection);
+        command.Parameters.AddWithValue("@RoleName", roleName);
+
+        var result = await command.ExecuteScalarAsync();
+        return result is int count ? count : Convert.ToInt32(result);
+    }
+
+    public async Task<bool> SetUserRoleAsync(Guid userId, string roleName)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        using var transaction = connection.BeginTransaction();
+
+        await using (var deleteCommand = new SqlCommand(
+            "DELETE FROM dbo.UserRoles WHERE UserId = @UserId;",
+            connection,
+            transaction))
+        {
+            deleteCommand.Parameters.AddWithValue("@UserId", userId);
+            await deleteCommand.ExecuteNonQueryAsync();
+        }
+
+        int inserted;
+        await using (var insertCommand = new SqlCommand(
+            """
+            INSERT INTO dbo.UserRoles (UserId, RoleId)
+            SELECT @UserId, RoleId
+            FROM dbo.Roles
+            WHERE Name = @RoleName;
+            """,
+            connection,
+            transaction))
+        {
+            insertCommand.Parameters.AddWithValue("@UserId", userId);
+            insertCommand.Parameters.AddWithValue("@RoleName", roleName);
+            inserted = await insertCommand.ExecuteNonQueryAsync();
+        }
+
+        await transaction.CommitAsync();
+        return inserted > 0;
+    }
+
+    public async Task<bool> DeleteUserAsync(Guid userId)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand("DELETE FROM dbo.Users WHERE UserId = @UserId;", connection);
+        command.Parameters.AddWithValue("@UserId", userId);
+
+        return await command.ExecuteNonQueryAsync() > 0;
+    }
+
     private async Task<SqlConnection> CreateOpenConnectionAsync()
     {
         if (string.IsNullOrWhiteSpace(connectionString))

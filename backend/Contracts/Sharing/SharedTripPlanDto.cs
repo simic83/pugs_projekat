@@ -5,6 +5,7 @@ using TravelPlanner.Contracts.Checklist;
 using TravelPlanner.Contracts.Destinations;
 using TravelPlanner.Contracts.Enums;
 using TravelPlanner.Contracts.Notes;
+using TravelPlanner.Contracts.Reminders;
 using TravelPlanner.Contracts.Trips;
 
 namespace TravelPlanner.Contracts.Sharing;
@@ -38,4 +39,7 @@ public sealed class SharedTripPlanDto
 
     [DataMember(Order = 9)]
     public List<NoteDto> Notes { get; set; } = new();
+
+    [DataMember(Order = 10)]
+    public List<ReminderDto> Reminders { get; set; } = new();
 }

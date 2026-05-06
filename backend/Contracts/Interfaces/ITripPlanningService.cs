@@ -4,6 +4,7 @@ using TravelPlanner.Contracts.Checklist;
 using TravelPlanner.Contracts.Common;
 using TravelPlanner.Contracts.Destinations;
 using TravelPlanner.Contracts.Notes;
+using TravelPlanner.Contracts.Reminders;
 using TravelPlanner.Contracts.Trips;
 
 namespace TravelPlanner.Contracts.Interfaces;
@@ -12,6 +13,8 @@ public interface ITripPlanningService : IService
 {
     Task<List<TripPlanDto>> GetTripPlansAsync(Guid userId);
 
+    Task<List<TripPlanDto>> GetAllTripPlansForAdminAsync();
+
     Task<TripPlanDto?> GetTripPlanByIdAsync(Guid tripPlanId, Guid userId);
 
     Task<TripPlanDto?> CreateTripPlanAsync(CreateTripPlanRequestDto request);
@@ -19,6 +22,8 @@ public interface ITripPlanningService : IService
     Task<TripPlanDto?> UpdateTripPlanAsync(Guid tripPlanId, Guid userId, UpdateTripPlanRequestDto request);
 
     Task<OperationResultDto> DeleteTripPlanAsync(Guid tripPlanId, Guid userId);
+
+    Task<OperationResultDto> DeleteTripPlanForAdminAsync(Guid tripPlanId);
 
     Task<List<DestinationDto>> GetDestinationsAsync(Guid tripPlanId, Guid userId);
 
@@ -51,4 +56,12 @@ public interface ITripPlanningService : IService
     Task<NoteDto?> UpdateNoteAsync(Guid tripPlanId, Guid noteId, Guid userId, UpdateNoteRequestDto request);
 
     Task<OperationResultDto> DeleteNoteAsync(Guid tripPlanId, Guid noteId, Guid userId);
+
+    Task<List<ReminderDto>> GetRemindersAsync(Guid tripPlanId, Guid userId);
+
+    Task<ReminderDto?> CreateReminderAsync(Guid tripPlanId, Guid userId, CreateReminderRequestDto request);
+
+    Task<ReminderDto?> UpdateReminderAsync(Guid tripPlanId, Guid reminderId, Guid userId, UpdateReminderRequestDto request);
+
+    Task<OperationResultDto> DeleteReminderAsync(Guid tripPlanId, Guid reminderId, Guid userId);
 }

@@ -1,3 +1,9 @@
+import { useMemo } from "react";
+import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
+
+const calendarPlugins = [dayGridPlugin];
+
 const activityStatuses = [
   { value: 0, label: "Planned" },
   { value: 1, label: "Reserved" },
@@ -5,74 +11,65 @@ const activityStatuses = [
   { value: 3, label: "Cancelled" },
 ];
 
-export function ActivityCalendar({ days, emptyMessage = "Nema aktivnosti za prikaz." }) {
-  if (days.length === 0) {
-    return <div className="empty-state">{emptyMessage}</div>;
-  }
+export function ActivityCalendar({ activities = [], emptyMessage = "Nema aktivnosti za prikaz.", initialDate }) {
+  const sortedActivities = useMemo(() => sortActivitiesByDateAndTime(activities), [activities]);
+  const calendarEvents = useMemo(() => buildCalendarEvents(sortedActivities), [sortedActivities]);
+  const activitiesWithoutDate = useMemo(
+    () => sortedActivities.filter((activity) => !toDateInputValue(activity.activityDate)),
+    [sortedActivities],
+  );
+  const initialCalendarDate = useMemo(
+    () => getInitialCalendarDate(initialDate, sortedActivities),
+    [initialDate, sortedActivities],
+  );
 
   return (
     <div className="activity-calendar">
-      {days.map((day) => (
-        <section
-          className={`activity-calendar-day${day.activities.length === 0 ? " is-empty" : ""}`}
-          key={day.dateKey}
-        >
-          <header className="activity-calendar-day-header">
-            <span className="activity-calendar-date">
-              {day.dateKey === "no-date" ? "Bez datuma" : formatDateKey(day.dateKey)}
-            </span>
-            <span className="badge badge-muted">{day.activities.length}</span>
-          </header>
+      <FullCalendar
+        buttonIcons={false}
+        buttonText={{
+          next: "Sledeci",
+          prev: "Prethodni",
+        }}
+        dayMaxEvents={3}
+        displayEventTime={false}
+        eventDisplay="block"
+        events={calendarEvents}
+        firstDay={1}
+        fixedWeekCount={false}
+        headerToolbar={{
+          center: "title",
+          left: "prev",
+          right: "next",
+        }}
+        height="auto"
+        initialDate={initialCalendarDate}
+        initialView="dayGridMonth"
+        key={initialCalendarDate}
+        plugins={calendarPlugins}
+      />
 
-          {day.activities.length > 0 ? (
-            <div className="activity-calendar-items">
-              {day.activities.map((activity) => (
-                <ActivityCalendarItem activity={activity} key={activity.id} />
-              ))}
-            </div>
-          ) : (
-            <p className="activity-calendar-empty">Nema aktivnosti.</p>
-          )}
+      {activitiesWithoutDate.length > 0 ? (
+        <section className="activity-calendar-no-date">
+          <div className="activity-calendar-no-date-header">
+            <span className="activity-calendar-no-date-title">Bez datuma</span>
+            <span className="badge badge-muted">{activitiesWithoutDate.length}</span>
+          </div>
+
+          <div className="activity-calendar-no-date-list">
+            {activitiesWithoutDate.map((activity) => (
+              <article className="activity-calendar-no-date-item" key={activity.id ?? activity.title}>
+                <span>{buildEventTitle(activity)}</span>
+                <span className={`badge ${getStatusClass(activity.status)}`}>{getStatusLabel(activity.status)}</span>
+              </article>
+            ))}
+          </div>
         </section>
-      ))}
+      ) : null}
+
+      {activities.length === 0 ? <div className="empty-state activity-calendar-message">{emptyMessage}</div> : null}
     </div>
   );
-}
-
-export function buildActivityCalendarDays(startDate, endDate, activities) {
-  const sortedActivities = sortActivitiesByDateAndTime(activities);
-  const activitiesByDate = sortedActivities.reduce((groups, activity) => {
-    const dateKey = toDateInputValue(activity.activityDate);
-    if (!dateKey) {
-      return groups;
-    }
-
-    groups[dateKey] = groups[dateKey] ?? [];
-    groups[dateKey].push(activity);
-    return groups;
-  }, {});
-
-  const rangeDateKeys = buildDateRangeKeys(toDateInputValue(startDate), toDateInputValue(endDate));
-  const activityDateKeys = Object.keys(activitiesByDate).sort(compareDates);
-  const dateKeys =
-    rangeDateKeys.length > 0
-      ? Array.from(new Set([...rangeDateKeys, ...activityDateKeys])).sort(compareDates)
-      : activityDateKeys;
-  const noDateActivities = sortedActivities.filter((activity) => !toDateInputValue(activity.activityDate));
-
-  const days = dateKeys.map((dateKey) => ({
-    dateKey,
-    activities: activitiesByDate[dateKey] ?? [],
-  }));
-
-  if (noDateActivities.length > 0) {
-    days.push({
-      dateKey: "no-date",
-      activities: noDateActivities,
-    });
-  }
-
-  return days;
 }
 
 export function groupActivitiesByDate(activities) {
@@ -86,31 +83,45 @@ export function groupActivitiesByDate(activities) {
   );
 }
 
-function ActivityCalendarItem({ activity }) {
-  const details = [
-    activity.activityTime ? String(activity.activityTime).slice(0, 5) : "",
-    activity.location ?? "",
-    hasEstimatedCost(activity.estimatedCost) ? formatMoney(activity.estimatedCost) : "",
-  ].filter(Boolean);
+function buildCalendarEvents(activities) {
+  return activities
+    .filter((activity) => toDateInputValue(activity.activityDate))
+    .map((activity) => ({
+      allDay: true,
+      backgroundColor: getEventColor(activity.status),
+      borderColor: getEventColor(activity.status),
+      classNames: ["activity-calendar-event", getStatusClass(activity.status)],
+      date: toDateInputValue(activity.activityDate),
+      extendedProps: {
+        location: activity.location ?? "",
+        status: getStatusLabel(activity.status),
+      },
+      id: String(activity.id ?? `${activity.activityDate}-${activity.title}`),
+      textColor: "#ffffff",
+      title: buildEventTitle(activity),
+    }));
+}
 
-  return (
-    <article className="activity-calendar-item">
-      <div className="activity-calendar-item-header">
-        <span className="activity-calendar-item-title">{activity.title}</span>
-        <span className={`badge ${getStatusClass(activity.status)}`}>{getStatusLabel(activity.status)}</span>
-      </div>
+function buildEventTitle(activity) {
+  const time = activity.activityTime ? String(activity.activityTime).slice(0, 5) : "";
+  const title = activity.title || "Aktivnost";
+  const status = getStatusLabel(activity.status);
 
-      {details.length > 0 ? (
-        <p className="activity-calendar-meta">
-          {details.map((detail, index) => (
-            <span key={`${detail}-${index}`}>{detail}</span>
-          ))}
-        </p>
-      ) : null}
+  return `${time ? `${time} - ` : ""}${title} (${status})`;
+}
 
-      {activity.description ? <p className="list-item-description">{activity.description}</p> : null}
-    </article>
-  );
+function getInitialCalendarDate(initialDate, activities) {
+  const initialDateKey = toDateInputValue(initialDate);
+  if (isValidDateKey(initialDateKey)) {
+    return initialDateKey;
+  }
+
+  const firstActivityDateKey = activities.map((activity) => toDateInputValue(activity.activityDate)).find(isValidDateKey);
+  if (firstActivityDateKey) {
+    return firstActivityDateKey;
+  }
+
+  return toDateKey(new Date());
 }
 
 function sortActivitiesByDateAndTime(activities) {
@@ -124,38 +135,12 @@ function sortActivitiesByDateAndTime(activities) {
   });
 }
 
-function buildDateRangeKeys(startKey, endKey) {
-  const startDate = parseDateKey(startKey);
-  const endDate = parseDateKey(endKey);
-
-  if (!startDate || !endDate || startDate.getTime() > endDate.getTime()) {
-    return [];
+function toDateInputValue(value) {
+  if (!value) {
+    return "";
   }
 
-  const keys = [];
-  const currentDate = new Date(startDate.getTime());
-
-  while (currentDate.getTime() <= endDate.getTime()) {
-    keys.push(toDateKey(currentDate));
-    currentDate.setDate(currentDate.getDate() + 1);
-  }
-
-  return keys;
-}
-
-function parseDateKey(dateKey) {
-  if (!dateKey) {
-    return null;
-  }
-
-  const [year, month, day] = String(dateKey).split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-
-  if (!year || !month || !day || Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date;
+  return String(value).slice(0, 10);
 }
 
 function toDateKey(date) {
@@ -166,35 +151,30 @@ function toDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
-function toDateInputValue(value) {
-  if (!value) {
-    return "";
+function isValidDateKey(dateKey) {
+  if (!dateKey) {
+    return false;
   }
 
-  return String(value).slice(0, 10);
+  const [year, month, day] = String(dateKey).split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+
+  return (
+    Boolean(year && month && day) &&
+    !Number.isNaN(date.getTime()) &&
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
 }
 
 function compareDates(firstValue, secondValue) {
-  const firstTime = firstValue ? new Date(firstValue).getTime() : Number.MAX_SAFE_INTEGER;
-  const secondTime = secondValue ? new Date(secondValue).getTime() : Number.MAX_SAFE_INTEGER;
+  const firstDateKey = toDateInputValue(firstValue);
+  const secondDateKey = toDateInputValue(secondValue);
+  const firstTime = isValidDateKey(firstDateKey) ? new Date(firstDateKey).getTime() : Number.MAX_SAFE_INTEGER;
+  const secondTime = isValidDateKey(secondDateKey) ? new Date(secondDateKey).getTime() : Number.MAX_SAFE_INTEGER;
 
   return firstTime - secondTime;
-}
-
-function formatDateKey(dateKey) {
-  const date = parseDateKey(dateKey);
-  return date ? date.toLocaleDateString() : "";
-}
-
-function formatMoney(value) {
-  return Number(value ?? 0).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function hasEstimatedCost(value) {
-  return value !== null && value !== undefined && value !== "" && Number(value) > 0;
 }
 
 function getStatusLabel(value) {
@@ -218,4 +198,22 @@ function getStatusClass(value) {
   }
 
   return "status-planned";
+}
+
+function getEventColor(value) {
+  const numericValue = Number(value);
+
+  if (numericValue === 1) {
+    return "#c2410c";
+  }
+
+  if (numericValue === 2) {
+    return "#0f766e";
+  }
+
+  if (numericValue === 3) {
+    return "#b42318";
+  }
+
+  return "#0f4c81";
 }

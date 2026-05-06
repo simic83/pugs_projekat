@@ -10,6 +10,8 @@ internal interface ITripPlanningRepository
 
     Task<List<TripPlanModel>> GetTripPlansByOwnerAsync(Guid ownerUserId);
 
+    Task<List<TripPlanModel>> GetAllTripPlansAsync();
+
     Task<bool> UpdateTripPlanAsync(TripPlanModel tripPlan);
 
     Task<bool> DeleteTripPlanAsync(Guid tripPlanId);
@@ -53,4 +55,14 @@ internal interface ITripPlanningRepository
     Task<bool> UpdateNoteAsync(NoteModel note);
 
     Task<bool> DeleteNoteAsync(Guid noteId);
+
+    Task<ReminderModel> CreateReminderAsync(ReminderModel reminder);
+
+    Task<List<ReminderModel>> GetRemindersByTripPlanIdAsync(Guid tripPlanId);
+
+    Task<ReminderModel?> GetReminderByIdAsync(Guid reminderId);
+
+    Task<bool> UpdateReminderAsync(ReminderModel reminder);
+
+    Task<bool> DeleteReminderAsync(Guid reminderId);
 }
