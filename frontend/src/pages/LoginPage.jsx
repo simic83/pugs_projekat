@@ -3,13 +3,14 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FormFieldError } from "../components/trips/FormFieldError.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { createLoginFormModel } from "../models/auth.js";
 import { hasValidationErrors, validateLogin } from "../utils/validation.js";
 
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState(createLoginFormModel);
   const [error, setError] = useState("");
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -2,7 +2,8 @@ import { MapPinned, RefreshCw, Save, Trash2, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "../api/adminApi.js";
 import { useAuth } from "../context/AuthContext.jsx";
-import { USER_ROLES, getRoleNames } from "../models/auth.js";
+import { USER_ROLES, getRoleNames, normalizeUsers } from "../models/auth.js";
+import { normalizeAdminTripPlans } from "../models/tripPlan.js";
 
 export function AdminPage() {
   const { user: currentUser } = useAuth();
@@ -22,10 +23,11 @@ export function AdminPage() {
 
     try {
       const [loadedUsers, loadedTripPlans] = await Promise.all([adminApi.getUsers(), adminApi.getAllTripPlans()]);
-      setUsers(loadedUsers ?? []);
-      setTripPlans(loadedTripPlans ?? []);
+      const userModels = normalizeUsers(loadedUsers);
+      setUsers(userModels);
+      setTripPlans(normalizeAdminTripPlans(loadedTripPlans));
       setRoleDrafts(
-        Object.fromEntries((loadedUsers ?? []).map((user) => [user.id, getPrimaryRole(user)])),
+        Object.fromEntries(userModels.map((user) => [user.id, getPrimaryRole(user)])),
       );
     } catch (loadError) {
       setError(loadError.message || "Admin podaci nisu ucitani.");
@@ -68,7 +70,7 @@ export function AdminPage() {
       return;
     }
 
-    const confirmed = window.confirm(`Obrisati korisnika "${selectedUser.email}"?`);
+    const confirmed = window.confirm(`Obrisati korisnika "${selectedUser.email}" i sve njegove planove?`);
     if (!confirmed) {
       return;
     }

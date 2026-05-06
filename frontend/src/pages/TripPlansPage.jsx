@@ -20,7 +20,38 @@ import { TripPlanDetails } from "../components/trips/TripPlanDetails.jsx";
 import { TripPlanForm } from "../components/trips/TripPlanForm.jsx";
 import { TripPlanList } from "../components/trips/TripPlanList.jsx";
 import { buildSharedTripPlanLink, compareDates } from "../components/trips/tripDisplayUtils.js";
-import { SHARE_ACCESS_LEVELS } from "../models/sharing.js";
+import {
+  createBudgetSummaryModel,
+  createExpenseFormModel,
+  createExpenseRequestModel,
+  normalizeExpenses,
+} from "../models/budget.js";
+import {
+  createChecklistItemFormModel,
+  createChecklistItemRequestModel,
+  createChecklistItemUpdateRequestModel,
+  normalizeChecklistItems,
+} from "../models/checklist.js";
+import { createNoteFormModel, createNoteRequestModel, normalizeNotes } from "../models/notes.js";
+import {
+  createReminderFormModel,
+  createReminderRequestModel,
+  createReminderUpdateRequestModel,
+  normalizeReminders,
+} from "../models/reminders.js";
+import { SHARE_ACCESS_LEVELS, createShareRequestModel, normalizeShareTokens } from "../models/sharing.js";
+import {
+  createActivityFormModel,
+  createActivityRequestModel,
+  createDestinationFormModel,
+  createDestinationRequestModel,
+  createTripPlanFormModel,
+  createTripPlanModel,
+  createTripPlanRequestModel,
+  normalizeActivities,
+  normalizeDestinations,
+  normalizeTripPlans,
+} from "../models/tripPlan.js";
 import {
   hasValidationErrors,
   validateActivity,
@@ -32,57 +63,6 @@ import {
   validateShare,
   validateTripPlan,
 } from "../utils/validation.js";
-
-const emptyTripPlanForm = {
-  title: "",
-  description: "",
-  startDate: "",
-  endDate: "",
-  plannedBudget: "0",
-  notes: "",
-};
-
-const emptyDestinationForm = {
-  name: "",
-  location: "",
-  arrivalDate: "",
-  departureDate: "",
-  description: "",
-};
-
-const emptyActivityForm = {
-  title: "",
-  activityDate: "",
-  activityTime: "",
-  location: "",
-  description: "",
-  estimatedCost: "0",
-  status: 0,
-};
-
-const emptyExpenseForm = {
-  title: "",
-  category: 0,
-  amount: "0",
-  expenseDate: "",
-  description: "",
-};
-
-const emptyChecklistForm = {
-  title: "",
-};
-
-const emptyNoteForm = {
-  title: "",
-  content: "",
-};
-
-const emptyReminderForm = {
-  title: "",
-  description: "",
-  reminderAt: "",
-  isCompleted: false,
-};
 
 const emptyFormErrors = {
   tripPlan: {},
@@ -108,14 +88,14 @@ export function TripPlansPage() {
   const [reminders, setReminders] = useState([]);
   const [shares, setShares] = useState([]);
   const [budgetSummary, setBudgetSummary] = useState(null);
-  const [tripPlanForm, setTripPlanForm] = useState(emptyTripPlanForm);
-  const [selectedTripPlanForm, setSelectedTripPlanForm] = useState(emptyTripPlanForm);
-  const [destinationForm, setDestinationForm] = useState(emptyDestinationForm);
-  const [activityForm, setActivityForm] = useState(emptyActivityForm);
-  const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
-  const [checklistForm, setChecklistForm] = useState(emptyChecklistForm);
-  const [noteForm, setNoteForm] = useState(emptyNoteForm);
-  const [reminderForm, setReminderForm] = useState(emptyReminderForm);
+  const [tripPlanForm, setTripPlanForm] = useState(createTripPlanFormModel);
+  const [selectedTripPlanForm, setSelectedTripPlanForm] = useState(createTripPlanFormModel);
+  const [destinationForm, setDestinationForm] = useState(createDestinationFormModel);
+  const [activityForm, setActivityForm] = useState(createActivityFormModel);
+  const [expenseForm, setExpenseForm] = useState(createExpenseFormModel);
+  const [checklistForm, setChecklistForm] = useState(createChecklistItemFormModel);
+  const [noteForm, setNoteForm] = useState(createNoteFormModel);
+  const [reminderForm, setReminderForm] = useState(createReminderFormModel);
   const [shareAccessLevel, setShareAccessLevel] = useState(SHARE_ACCESS_LEVELS.VIEW);
   const [shareExpiresAt, setShareExpiresAt] = useState("");
   const [generatedShareLink, setGeneratedShareLink] = useState("");
@@ -137,7 +117,7 @@ export function TripPlansPage() {
     setError("");
 
     try {
-      const plans = (await tripPlansApi.getAll()) ?? [];
+      const plans = normalizeTripPlans(await tripPlansApi.getAll());
       setTripPlans(plans);
       setSelectedTripPlanId((currentId) => {
         if (currentId && plans.some((plan) => plan.id === currentId)) {
@@ -164,19 +144,19 @@ export function TripPlansPage() {
       setReminders([]);
       setShares([]);
       setBudgetSummary(null);
-      setSelectedTripPlanForm(emptyTripPlanForm);
+      setSelectedTripPlanForm(createTripPlanFormModel());
       setEditingDestinationId(null);
       setEditingActivityId(null);
       setEditingExpenseId(null);
       setEditingChecklistItemId(null);
       setEditingNoteId(null);
       setEditingReminderId(null);
-      setDestinationForm(emptyDestinationForm);
-      setActivityForm(emptyActivityForm);
-      setExpenseForm(emptyExpenseForm);
-      setChecklistForm(emptyChecklistForm);
-      setNoteForm(emptyNoteForm);
-      setReminderForm(emptyReminderForm);
+      setDestinationForm(createDestinationFormModel());
+      setActivityForm(createActivityFormModel());
+      setExpenseForm(createExpenseFormModel());
+      setChecklistForm(createChecklistItemFormModel());
+      setNoteForm(createNoteFormModel());
+      setReminderForm(createReminderFormModel());
       setGeneratedShareLink("");
       setVisibleShareQrId(null);
       setFormErrors(emptyFormErrors);
@@ -209,16 +189,17 @@ export function TripPlansPage() {
           sharingApi.getShares(tripPlanId),
         ]);
 
-      setSelectedTripPlan(tripPlan);
-      setSelectedTripPlanForm(toTripPlanForm(tripPlan));
-      setDestinations(tripDestinations ?? []);
-      setActivities(tripActivities ?? []);
-      setExpenses(tripExpenses ?? []);
-      setBudgetSummary(tripBudgetSummary);
-      setChecklistItems(tripChecklistItems ?? []);
-      setNotes(tripNotes ?? []);
-      setReminders(tripReminders ?? []);
-      setShares(tripShares ?? []);
+      const tripPlanModel = createTripPlanModel(tripPlan);
+      setSelectedTripPlan(tripPlanModel);
+      setSelectedTripPlanForm(createTripPlanFormModel(tripPlanModel));
+      setDestinations(normalizeDestinations(tripDestinations));
+      setActivities(normalizeActivities(tripActivities));
+      setExpenses(normalizeExpenses(tripExpenses));
+      setBudgetSummary(tripBudgetSummary ? createBudgetSummaryModel(tripBudgetSummary) : null);
+      setChecklistItems(normalizeChecklistItems(tripChecklistItems));
+      setNotes(normalizeNotes(tripNotes));
+      setReminders(normalizeReminders(tripReminders));
+      setShares(normalizeShareTokens(tripShares));
     } catch (requestError) {
       setError(getRequestErrorMessage(requestError));
     }
@@ -335,12 +316,12 @@ export function TripPlansPage() {
     setEditingChecklistItemId(null);
     setEditingNoteId(null);
     setEditingReminderId(null);
-    setDestinationForm(emptyDestinationForm);
-    setActivityForm(emptyActivityForm);
-    setExpenseForm(emptyExpenseForm);
-    setChecklistForm(emptyChecklistForm);
-    setNoteForm(emptyNoteForm);
-    setReminderForm(emptyReminderForm);
+    setDestinationForm(createDestinationFormModel());
+    setActivityForm(createActivityFormModel());
+    setExpenseForm(createExpenseFormModel());
+    setChecklistForm(createChecklistItemFormModel());
+    setNoteForm(createNoteFormModel());
+    setReminderForm(createReminderFormModel());
     setGeneratedShareLink("");
     setVisibleShareQrId(null);
     setActivityViewMode("list");
@@ -357,16 +338,9 @@ export function TripPlansPage() {
     }
 
     try {
-      const created = await tripPlansApi.create({
-        title: tripPlanForm.title,
-        description: tripPlanForm.description || null,
-        startDate: toDateTime(tripPlanForm.startDate),
-        endDate: toDateTime(tripPlanForm.endDate),
-        plannedBudget: Number(tripPlanForm.plannedBudget || 0),
-        notes: tripPlanForm.notes || null,
-      });
+      const created = await tripPlansApi.create(createTripPlanRequestModel(tripPlanForm));
 
-      setTripPlanForm(emptyTripPlanForm);
+      setTripPlanForm(createTripPlanFormModel());
       await loadTripPlans();
       setSelectedTripPlanId(created.id);
       setMessage("Uspesno sacuvano.");
@@ -411,14 +385,7 @@ export function TripPlansPage() {
     }
 
     try {
-      await tripPlansApi.update(selectedTripPlanId, {
-        title: selectedTripPlanForm.title,
-        description: selectedTripPlanForm.description || null,
-        startDate: toDateTime(selectedTripPlanForm.startDate),
-        endDate: toDateTime(selectedTripPlanForm.endDate),
-        plannedBudget: Number(selectedTripPlanForm.plannedBudget || 0),
-        notes: selectedTripPlanForm.notes || null,
-      });
+      await tripPlansApi.update(selectedTripPlanId, createTripPlanRequestModel(selectedTripPlanForm));
 
       await loadTripPlanDetails(selectedTripPlanId);
       await loadTripPlans();
@@ -429,7 +396,7 @@ export function TripPlansPage() {
   };
 
   const resetSelectedTripPlanForm = () => {
-    setSelectedTripPlanForm(toTripPlanForm(selectedTripPlan));
+    setSelectedTripPlanForm(createTripPlanFormModel(selectedTripPlan));
     clearFormErrors("selectedTripPlan");
     setMessage("");
   };
@@ -448,13 +415,7 @@ export function TripPlansPage() {
     }
 
     try {
-      const payload = {
-        name: destinationForm.name,
-        location: destinationForm.location || null,
-        arrivalDate: toDateTime(destinationForm.arrivalDate),
-        departureDate: toDateTime(destinationForm.departureDate),
-        description: destinationForm.description || null,
-      };
+      const payload = createDestinationRequestModel(destinationForm);
 
       if (editingDestinationId) {
         await destinationsApi.update(selectedTripPlanId, editingDestinationId, payload);
@@ -473,18 +434,12 @@ export function TripPlansPage() {
   const editDestination = (destination) => {
     setEditingDestinationId(destination.id);
     clearFormErrors("destination");
-    setDestinationForm({
-      name: destination.name ?? "",
-      location: destination.location ?? "",
-      arrivalDate: toDateInputValue(destination.arrivalDate),
-      departureDate: toDateInputValue(destination.departureDate),
-      description: destination.description ?? "",
-    });
+    setDestinationForm(createDestinationFormModel(destination));
   };
 
   const cancelDestinationEdit = () => {
     setEditingDestinationId(null);
-    setDestinationForm(emptyDestinationForm);
+    setDestinationForm(createDestinationFormModel());
     clearFormErrors("destination");
   };
 
@@ -521,15 +476,7 @@ export function TripPlansPage() {
     }
 
     try {
-      const payload = {
-        title: activityForm.title,
-        activityDate: toDateTime(activityForm.activityDate),
-        activityTime: activityForm.activityTime ? `${activityForm.activityTime}:00` : null,
-        location: activityForm.location || null,
-        description: activityForm.description || null,
-        estimatedCost: Number(activityForm.estimatedCost || 0),
-        status: Number(activityForm.status),
-      };
+      const payload = createActivityRequestModel(activityForm);
 
       if (editingActivityId) {
         await activitiesApi.update(selectedTripPlanId, editingActivityId, payload);
@@ -548,20 +495,12 @@ export function TripPlansPage() {
   const editActivity = (activity) => {
     setEditingActivityId(activity.id);
     clearFormErrors("activity");
-    setActivityForm({
-      title: activity.title ?? "",
-      activityDate: toDateInputValue(activity.activityDate),
-      activityTime: toTimeInputValue(activity.activityTime),
-      location: activity.location ?? "",
-      description: activity.description ?? "",
-      estimatedCost: String(activity.estimatedCost ?? 0),
-      status: Number(activity.status ?? 0),
-    });
+    setActivityForm(createActivityFormModel(activity));
   };
 
   const cancelActivityEdit = () => {
     setEditingActivityId(null);
-    setActivityForm(emptyActivityForm);
+    setActivityForm(createActivityFormModel());
     clearFormErrors("activity");
   };
 
@@ -598,14 +537,7 @@ export function TripPlansPage() {
     }
 
     try {
-      const payload = {
-        tripPlanId: selectedTripPlanId,
-        title: expenseForm.title,
-        category: Number(expenseForm.category),
-        amount: Number(expenseForm.amount || 0),
-        expenseDate: toDateTime(expenseForm.expenseDate),
-        description: expenseForm.description || null,
-      };
+      const payload = createExpenseRequestModel(expenseForm, selectedTripPlanId);
 
       if (editingExpenseId) {
         await budgetApi.updateExpense(selectedTripPlanId, editingExpenseId, payload);
@@ -624,18 +556,12 @@ export function TripPlansPage() {
   const editExpense = (expense) => {
     setEditingExpenseId(expense.id);
     clearFormErrors("expense");
-    setExpenseForm({
-      title: expense.title ?? "",
-      category: Number(expense.category ?? 0),
-      amount: String(expense.amount ?? 0),
-      expenseDate: toDateInputValue(expense.expenseDate),
-      description: expense.description ?? "",
-    });
+    setExpenseForm(createExpenseFormModel(expense));
   };
 
   const cancelExpenseEdit = () => {
     setEditingExpenseId(null);
-    setExpenseForm(emptyExpenseForm);
+    setExpenseForm(createExpenseFormModel());
     clearFormErrors("expense");
   };
 
@@ -672,17 +598,14 @@ export function TripPlansPage() {
     }
 
     try {
-      const payload = {
-        tripPlanId: selectedTripPlanId,
-        title: checklistForm.title,
-      };
+      const payload = createChecklistItemRequestModel(checklistForm, selectedTripPlanId);
 
       if (editingChecklistItemId) {
         const checklistItem = checklistItems.find((item) => item.id === editingChecklistItemId);
-        await checklistApi.updateChecklistItem(selectedTripPlanId, editingChecklistItemId, {
+        await checklistApi.updateChecklistItem(selectedTripPlanId, editingChecklistItemId, createChecklistItemUpdateRequestModel({
           ...payload,
           isCompleted: Boolean(checklistItem?.isCompleted),
-        });
+        }));
       } else {
         await checklistApi.createChecklistItem(selectedTripPlanId, payload);
       }
@@ -698,14 +621,12 @@ export function TripPlansPage() {
   const editChecklistItem = (checklistItem) => {
     setEditingChecklistItemId(checklistItem.id);
     clearFormErrors("checklist");
-    setChecklistForm({
-      title: checklistItem.title ?? "",
-    });
+    setChecklistForm(createChecklistItemFormModel(checklistItem));
   };
 
   const cancelChecklistEdit = () => {
     setEditingChecklistItemId(null);
-    setChecklistForm(emptyChecklistForm);
+    setChecklistForm(createChecklistItemFormModel());
     clearFormErrors("checklist");
   };
 
@@ -717,10 +638,10 @@ export function TripPlansPage() {
     setError("");
 
     try {
-      await checklistApi.updateChecklistItem(selectedTripPlanId, checklistItem.id, {
+      await checklistApi.updateChecklistItem(selectedTripPlanId, checklistItem.id, createChecklistItemUpdateRequestModel({
         title: checklistItem.title,
         isCompleted,
-      });
+      }));
 
       await loadTripPlanDetails(selectedTripPlanId);
     } catch (requestError) {
@@ -760,11 +681,7 @@ export function TripPlansPage() {
     }
 
     try {
-      const payload = {
-        tripPlanId: selectedTripPlanId,
-        title: noteForm.title,
-        content: noteForm.content || null,
-      };
+      const payload = createNoteRequestModel(noteForm, selectedTripPlanId);
 
       if (editingNoteId) {
         await notesApi.updateNote(selectedTripPlanId, editingNoteId, {
@@ -786,15 +703,12 @@ export function TripPlansPage() {
   const editNote = (note) => {
     setEditingNoteId(note.id);
     clearFormErrors("note");
-    setNoteForm({
-      title: note.title ?? "",
-      content: note.content ?? "",
-    });
+    setNoteForm(createNoteFormModel(note));
   };
 
   const cancelNoteEdit = () => {
     setEditingNoteId(null);
-    setNoteForm(emptyNoteForm);
+    setNoteForm(createNoteFormModel());
     clearFormErrors("note");
   };
 
@@ -830,29 +744,24 @@ export function TripPlansPage() {
     }
 
     try {
-      const payload = {
-        tripPlanId: selectedTripPlanId,
-        title: reminderForm.title,
-        description: reminderForm.description || null,
-        reminderAt: toDateTimeLocalValue(reminderForm.reminderAt),
-      };
+      const payload = createReminderRequestModel(reminderForm, selectedTripPlanId);
 
       if (editingReminderId) {
-        await remindersApi.updateReminder(selectedTripPlanId, editingReminderId, {
+        await remindersApi.updateReminder(selectedTripPlanId, editingReminderId, createReminderUpdateRequestModel({
           title: payload.title,
           description: payload.description,
           reminderAt: payload.reminderAt,
           isCompleted: Boolean(reminderForm.isCompleted),
-        });
+        }));
       } else {
         const created = await remindersApi.createReminder(selectedTripPlanId, payload);
         if (reminderForm.isCompleted && created?.id) {
-          await remindersApi.updateReminder(selectedTripPlanId, created.id, {
+          await remindersApi.updateReminder(selectedTripPlanId, created.id, createReminderUpdateRequestModel({
             title: payload.title,
             description: payload.description,
             reminderAt: payload.reminderAt,
             isCompleted: true,
-          });
+          }));
         }
       }
 
@@ -867,17 +776,12 @@ export function TripPlansPage() {
   const editReminder = (reminder) => {
     setEditingReminderId(reminder.id);
     clearFormErrors("reminder");
-    setReminderForm({
-      title: reminder.title ?? "",
-      description: reminder.description ?? "",
-      reminderAt: toDateTimeInputValue(reminder.reminderAt),
-      isCompleted: Boolean(reminder.isCompleted),
-    });
+    setReminderForm(createReminderFormModel(reminder));
   };
 
   const cancelReminderEdit = () => {
     setEditingReminderId(null);
-    setReminderForm(emptyReminderForm);
+    setReminderForm(createReminderFormModel());
     clearFormErrors("reminder");
   };
 
@@ -889,12 +793,12 @@ export function TripPlansPage() {
     setError("");
 
     try {
-      await remindersApi.updateReminder(selectedTripPlanId, reminder.id, {
+      await remindersApi.updateReminder(selectedTripPlanId, reminder.id, createReminderUpdateRequestModel({
         title: reminder.title,
         description: reminder.description || null,
         reminderAt: reminder.reminderAt,
         isCompleted,
-      });
+      }));
 
       await loadTripPlanDetails(selectedTripPlanId);
     } catch (requestError) {
@@ -934,16 +838,15 @@ export function TripPlansPage() {
     }
 
     try {
-      const created = await sharingApi.createShare(selectedTripPlanId, {
-        accessLevel: Number(shareAccessLevel),
-        expiresAt: shareExpiresAt ? toExpirationDateTime(shareExpiresAt) : null,
-      });
+      const created = await sharingApi.createShare(
+        selectedTripPlanId,
+        createShareRequestModel({ accessLevel: shareAccessLevel, expiresAt: shareExpiresAt }, selectedTripPlanId),
+      );
 
       setShareExpiresAt("");
       setGeneratedShareLink(buildSharedTripPlanLink(created.token));
       setVisibleShareQrId(created.id ?? null);
-      const tripShares = await sharingApi.getShares(selectedTripPlanId);
-      setShares(tripShares ?? []);
+      setShares(normalizeShareTokens(await sharingApi.getShares(selectedTripPlanId)));
       setMessage("Uspesno sacuvano.");
     } catch (requestError) {
       setError(getRequestErrorMessage(requestError));
@@ -961,8 +864,7 @@ export function TripPlansPage() {
       await sharingApi.revokeShare(selectedTripPlanId, shareId);
       setGeneratedShareLink("");
       setVisibleShareQrId(null);
-      const tripShares = await sharingApi.getShares(selectedTripPlanId);
-      setShares(tripShares ?? []);
+      setShares(normalizeShareTokens(await sharingApi.getShares(selectedTripPlanId)));
     } catch (requestError) {
       setError(getRequestErrorMessage(requestError));
     }
@@ -1124,63 +1026,12 @@ export function TripPlansPage() {
   );
 }
 
-function toTripPlanForm(tripPlan) {
-  if (!tripPlan) {
-    return emptyTripPlanForm;
-  }
-
-  return {
-    title: tripPlan.title ?? "",
-    description: tripPlan.description ?? "",
-    startDate: toDateInputValue(tripPlan.startDate),
-    endDate: toDateInputValue(tripPlan.endDate),
-    plannedBudget: String(tripPlan.plannedBudget ?? 0),
-    notes: tripPlan.notes ?? "",
-  };
-}
-
 function updateForm(setForm, event) {
   const { name, value } = event.target;
   setForm((currentForm) => ({
     ...currentForm,
     [name]: value,
   }));
-}
-
-function toDateTime(dateValue) {
-  return dateValue ? `${dateValue}T00:00:00` : null;
-}
-
-function toDateTimeLocalValue(dateTimeValue) {
-  return dateTimeValue ? `${dateTimeValue}:00` : null;
-}
-
-function toExpirationDateTime(dateValue) {
-  return dateValue ? `${dateValue}T23:59:59` : null;
-}
-
-function toDateInputValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  return String(value).slice(0, 10);
-}
-
-function toTimeInputValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  return String(value).slice(0, 5);
-}
-
-function toDateTimeInputValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  return String(value).slice(0, 16);
 }
 
 function getRequestErrorMessage(requestError) {

@@ -1,12 +1,8 @@
 import { EXPENSE_CATEGORIES } from "../../models/budget.js";
 import { SHARE_ACCESS_LEVELS } from "../../models/sharing.js";
+import { ACTIVITY_STATUS, ACTIVITY_STATUSES } from "../../models/tripPlan.js";
 
-export const ACTIVITY_STATUSES = [
-  { value: 0, label: "Planned" },
-  { value: 1, label: "Reserved" },
-  { value: 2, label: "Completed" },
-  { value: 3, label: "Cancelled" },
-];
+export { ACTIVITY_STATUSES };
 
 export function compareDates(firstValue, secondValue) {
   const firstTime = firstValue ? new Date(firstValue).getTime() : Number.MAX_SAFE_INTEGER;
@@ -57,15 +53,15 @@ export function getStatusLabel(value) {
 export function getStatusClass(value) {
   const numericValue = Number(value);
 
-  if (numericValue === 1) {
+  if (numericValue === ACTIVITY_STATUS.RESERVED) {
     return "status-reserved";
   }
 
-  if (numericValue === 2) {
+  if (numericValue === ACTIVITY_STATUS.COMPLETED) {
     return "status-completed";
   }
 
-  if (numericValue === 3) {
+  if (numericValue === ACTIVITY_STATUS.CANCELLED) {
     return "status-cancelled";
   }
 

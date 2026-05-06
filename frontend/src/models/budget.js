@@ -1,8 +1,81 @@
+import {
+  dateInputValue,
+  dateOnlyToDateTime,
+  enumNumberValue,
+  normalizeArray,
+  nullableString,
+  numberValue,
+  stringValue,
+} from "./modelUtils.js";
+
+export const EXPENSE_CATEGORY = {
+  TRANSPORT: 0,
+  ACCOMMODATION: 1,
+  FOOD: 2,
+  TICKETS: 3,
+  SHOPPING: 4,
+  OTHER: 5,
+};
+
 export const EXPENSE_CATEGORIES = [
-  { value: 0, label: "Transport" },
-  { value: 1, label: "Accommodation" },
-  { value: 2, label: "Food" },
-  { value: 3, label: "Tickets" },
-  { value: 4, label: "Shopping" },
-  { value: 5, label: "Other" },
+  { value: EXPENSE_CATEGORY.TRANSPORT, label: "Transport" },
+  { value: EXPENSE_CATEGORY.ACCOMMODATION, label: "Accommodation" },
+  { value: EXPENSE_CATEGORY.FOOD, label: "Food" },
+  { value: EXPENSE_CATEGORY.TICKETS, label: "Tickets" },
+  { value: EXPENSE_CATEGORY.SHOPPING, label: "Shopping" },
+  { value: EXPENSE_CATEGORY.OTHER, label: "Other" },
 ];
+
+export function createExpenseModel(source = {}) {
+  source = source ?? {};
+
+  return {
+    id: source.id ?? "",
+    tripPlanId: source.tripPlanId ?? "",
+    title: stringValue(source.title),
+    category: enumNumberValue(source.category, EXPENSE_CATEGORY.OTHER),
+    amount: numberValue(source.amount),
+    expenseDate: source.expenseDate ?? "",
+    description: source.description ?? null,
+    createdAt: source.createdAt ?? "",
+    updatedAt: source.updatedAt ?? null,
+  };
+}
+
+export function createExpenseFormModel(source = {}) {
+  source = source ?? {};
+
+  return {
+    title: stringValue(source.title),
+    category: enumNumberValue(source.category, EXPENSE_CATEGORY.TRANSPORT),
+    amount: stringValue(source.amount ?? 0),
+    expenseDate: dateInputValue(source.expenseDate),
+    description: stringValue(source.description),
+  };
+}
+
+export function createExpenseRequestModel(form = {}, tripPlanId = null) {
+  form = form ?? {};
+
+  return {
+    ...(tripPlanId ? { tripPlanId } : {}),
+    title: stringValue(form.title).trim(),
+    category: enumNumberValue(form.category, EXPENSE_CATEGORY.TRANSPORT),
+    amount: numberValue(form.amount),
+    expenseDate: dateOnlyToDateTime(form.expenseDate),
+    description: nullableString(form.description),
+  };
+}
+
+export function createBudgetSummaryModel(source = {}) {
+  source = source ?? {};
+
+  return {
+    tripPlanId: source.tripPlanId ?? "",
+    plannedBudget: numberValue(source.plannedBudget),
+    totalExpenses: numberValue(source.totalExpenses),
+    remainingBudget: numberValue(source.remainingBudget),
+  };
+}
+
+export const normalizeExpenses = (items) => normalizeArray(items, createExpenseModel);

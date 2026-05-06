@@ -1,15 +1,9 @@
 import { useMemo } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
+import { ACTIVITY_STATUS, ACTIVITY_STATUSES } from "../models/tripPlan.js";
 
 const calendarPlugins = [dayGridPlugin];
-
-const activityStatuses = [
-  { value: 0, label: "Planned" },
-  { value: 1, label: "Reserved" },
-  { value: 2, label: "Completed" },
-  { value: 3, label: "Cancelled" },
-];
 
 export function ActivityCalendar({ activities = [], emptyMessage = "Nema aktivnosti za prikaz.", initialDate }) {
   const sortedActivities = useMemo(() => sortActivitiesByDateAndTime(activities), [activities]);
@@ -179,21 +173,21 @@ function compareDates(firstValue, secondValue) {
 
 function getStatusLabel(value) {
   const numericValue = Number(value);
-  return activityStatuses.find((status) => status.value === numericValue)?.label ?? "Planned";
+  return ACTIVITY_STATUSES.find((status) => status.value === numericValue)?.label ?? "Planned";
 }
 
 function getStatusClass(value) {
   const numericValue = Number(value);
 
-  if (numericValue === 1) {
+  if (numericValue === ACTIVITY_STATUS.RESERVED) {
     return "status-reserved";
   }
 
-  if (numericValue === 2) {
+  if (numericValue === ACTIVITY_STATUS.COMPLETED) {
     return "status-completed";
   }
 
-  if (numericValue === 3) {
+  if (numericValue === ACTIVITY_STATUS.CANCELLED) {
     return "status-cancelled";
   }
 
@@ -203,15 +197,15 @@ function getStatusClass(value) {
 function getEventColor(value) {
   const numericValue = Number(value);
 
-  if (numericValue === 1) {
+  if (numericValue === ACTIVITY_STATUS.RESERVED) {
     return "#c2410c";
   }
 
-  if (numericValue === 2) {
+  if (numericValue === ACTIVITY_STATUS.COMPLETED) {
     return "#0f766e";
   }
 
-  if (numericValue === 3) {
+  if (numericValue === ACTIVITY_STATUS.CANCELLED) {
     return "#b42318";
   }
 

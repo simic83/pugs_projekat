@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { authApi } from "../api/authApi.js";
-import { USER_ROLES, getRoleNames, userHasRole } from "../models/auth.js";
+import { USER_ROLES, createAuthResponseModel, createUserModel, getRoleNames, userHasRole } from "../models/auth.js";
 import { tokenStorage } from "../utils/tokenStorage.js";
 
 const AuthContext = createContext(null);
@@ -11,13 +11,15 @@ export function AuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(false);
 
   const persistAuth = useCallback((response) => {
-    if (!response?.accessToken) {
+    const authResponse = createAuthResponseModel(response);
+
+    if (!authResponse.accessToken) {
       throw new Error("Authentication response did not include a token.");
     }
 
-    tokenStorage.setToken(response.accessToken);
-    setToken(response.accessToken);
-    setUser(response.user ?? null);
+    tokenStorage.setToken(authResponse.accessToken);
+    setToken(authResponse.accessToken);
+    setUser(authResponse.user);
   }, []);
 
   const login = useCallback(
@@ -53,7 +55,7 @@ export function AuthProvider({ children }) {
     setIsLoading(true);
 
     try {
-      const currentUser = await authApi.getCurrentUser(token);
+      const currentUser = createUserModel(await authApi.getCurrentUser(token));
       setUser(currentUser);
       return currentUser;
     } catch (error) {

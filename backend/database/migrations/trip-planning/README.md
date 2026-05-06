@@ -6,3 +6,4 @@ Trip planning migrations:
 2. `002_create_checklist_items.sql` - checklist / packing lista.
 3. `003_create_notes.sql` - notes / beleske za plan putovanja.
 4. `004_create_reminders.sql` - podsjetnici za plan putovanja.
+5. `005_add_trip_plan_owner_cascade.sql` - cascade delete veza izmedju korisnika i njegovih planova.

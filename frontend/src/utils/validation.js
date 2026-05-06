@@ -1,11 +1,16 @@
+import { EXPENSE_CATEGORIES } from "../models/budget.js";
+import { SHARE_ACCESS_LEVEL_OPTIONS } from "../models/sharing.js";
+import { ACTIVITY_STATUSES } from "../models/tripPlan.js";
+
 export const validationRules = {
   tripDates: "end-date-must-not-be-before-start-date",
   budget: "budget-must-not-be-negative",
 };
 
-const ACTIVITY_STATUSES = ["Planned", "Reserved", "Completed", "Cancelled"];
-const EXPENSE_CATEGORIES = ["Transport", "Accommodation", "Food", "Tickets", "Shopping", "Other"];
-const SHARE_ACCESS_LEVELS = ["VIEW", "EDIT"];
+const ACTIVITY_STATUS_LABELS = ACTIVITY_STATUSES.map((status) => status.label);
+const EXPENSE_CATEGORY_LABELS = EXPENSE_CATEGORIES.map((category) => category.label);
+const SHARE_ACCESS_LEVEL_LABELS = SHARE_ACCESS_LEVEL_OPTIONS.map((accessLevel) => accessLevel.label);
+export const MINIMUM_PASSWORD_LENGTH = 7;
 
 export function validateTripPlan(data) {
   const errors = {};
@@ -70,7 +75,7 @@ export function validateActivity(data) {
     errors.estimatedCost = "Procenjeni trosak ne sme biti negativan.";
   }
 
-  if (!isAllowedOption(data?.status, ACTIVITY_STATUSES)) {
+  if (!isAllowedOption(data?.status, ACTIVITY_STATUS_LABELS)) {
     errors.status = "Status mora biti Planned, Reserved, Completed ili Cancelled.";
   }
 
@@ -86,7 +91,7 @@ export function validateExpense(data) {
 
   if (isBlank(data?.category)) {
     errors.category = "Kategorija je obavezna.";
-  } else if (!isAllowedOption(data.category, EXPENSE_CATEGORIES)) {
+  } else if (!isAllowedOption(data.category, EXPENSE_CATEGORY_LABELS)) {
     errors.category = "Kategorija mora biti Transport, Accommodation, Food, Tickets, Shopping ili Other.";
   }
 
@@ -146,7 +151,7 @@ export function validateShare(data) {
 
   if (isBlank(data?.accessLevel)) {
     errors.accessLevel = "AccessLevel je obavezan.";
-  } else if (!isAllowedOption(data.accessLevel, SHARE_ACCESS_LEVELS)) {
+  } else if (!isAllowedOption(data.accessLevel, SHARE_ACCESS_LEVEL_LABELS)) {
     errors.accessLevel = "AccessLevel mora biti VIEW ili EDIT.";
   }
 
@@ -186,8 +191,8 @@ export function validateRegister(data) {
 
   if (isBlank(data?.password)) {
     errors.password = "Lozinka je obavezna.";
-  } else if (String(data.password).length < 6) {
-    errors.password = "Lozinka mora imati najmanje 6 karaktera.";
+  } else if (String(data.password).length < MINIMUM_PASSWORD_LENGTH) {
+    errors.password = `Lozinka mora imati najmanje ${MINIMUM_PASSWORD_LENGTH} karaktera.`;
   }
 
   return errors;

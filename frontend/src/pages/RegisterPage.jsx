@@ -3,12 +3,13 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FormFieldError } from "../components/trips/FormFieldError.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
-import { hasValidationErrors, validateRegister } from "../utils/validation.js";
+import { createRegisterFormModel } from "../models/auth.js";
+import { MINIMUM_PASSWORD_LENGTH, hasValidationErrors, validateRegister } from "../utils/validation.js";
 
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState(createRegisterFormModel);
   const [error, setError] = useState("");
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -92,7 +93,7 @@ export function RegisterPage() {
           <input
             autoComplete="new-password"
             className={`input${errors.password ? " input-error" : ""}`}
-            minLength={6}
+            minLength={MINIMUM_PASSWORD_LENGTH}
             name="password"
             onChange={updateField}
             required

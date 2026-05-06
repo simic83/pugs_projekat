@@ -44,8 +44,9 @@ Ako se migracije pokrecu pojedinacno, redosled je:
 3. `backend/database/migrations/trip-planning/002_create_checklist_items.sql`
 4. `backend/database/migrations/trip-planning/003_create_notes.sql`
 5. `backend/database/migrations/trip-planning/004_create_reminders.sql`
-6. `backend/database/migrations/budget/001_create_budget_schema.sql`
-7. `backend/database/migrations/sharing/001_create_share_tokens.sql`
+6. `backend/database/migrations/trip-planning/005_add_trip_plan_owner_cascade.sql`
+7. `backend/database/migrations/budget/001_create_budget_schema.sql`
+8. `backend/database/migrations/sharing/001_create_share_tokens.sql`
 
 SQL Server Management Studio ne pokrece automatski druge `.sql` fajlove iz foldera. Ako se ne koristi objedinjena skripta, svaki migracioni fajl treba rucno otvoriti i pokrenuti navedenim redosledom.
 

@@ -23,8 +23,24 @@ import { Link, useParams } from "react-router-dom";
 import { sharingApi } from "../api/sharingApi.js";
 import { ActivityCalendar } from "../components/ActivityCalendar.jsx";
 import { FormFieldError } from "../components/trips/FormFieldError.jsx";
-import { EXPENSE_CATEGORIES } from "../models/budget.js";
-import { SHARE_ACCESS_LEVELS } from "../models/sharing.js";
+import { EXPENSE_CATEGORIES, createExpenseFormModel, createExpenseRequestModel } from "../models/budget.js";
+import {
+  createChecklistItemFormModel,
+  createChecklistItemRequestModel,
+  createChecklistItemUpdateRequestModel,
+} from "../models/checklist.js";
+import { createNoteFormModel, createNoteRequestModel } from "../models/notes.js";
+import { SHARE_ACCESS_LEVELS, createSharedTripPlanModel } from "../models/sharing.js";
+import {
+  ACTIVITY_STATUS,
+  ACTIVITY_STATUSES,
+  createActivityFormModel,
+  createActivityRequestModel,
+  createDestinationFormModel,
+  createDestinationRequestModel,
+  createTripPlanFormModel,
+  createTripPlanRequestModel,
+} from "../models/tripPlan.js";
 import {
   hasValidationErrors,
   validateActivity,
@@ -35,50 +51,6 @@ import {
   validateTripPlan,
 } from "../utils/validation.js";
 
-const emptyTripPlanForm = {
-  title: "",
-  description: "",
-  startDate: "",
-  endDate: "",
-  plannedBudget: "0",
-  notes: "",
-};
-
-const emptyDestinationForm = {
-  name: "",
-  location: "",
-  arrivalDate: "",
-  departureDate: "",
-  description: "",
-};
-
-const emptyActivityForm = {
-  title: "",
-  activityDate: "",
-  activityTime: "",
-  location: "",
-  description: "",
-  estimatedCost: "0",
-  status: 0,
-};
-
-const emptyExpenseForm = {
-  title: "",
-  category: 0,
-  amount: "0",
-  expenseDate: "",
-  description: "",
-};
-
-const emptyChecklistForm = {
-  title: "",
-};
-
-const emptyNoteForm = {
-  title: "",
-  content: "",
-};
-
 const emptyFormErrors = {
   tripPlan: {},
   destination: {},
@@ -88,22 +60,15 @@ const emptyFormErrors = {
   note: {},
 };
 
-const activityStatuses = [
-  { value: 0, label: "Planned" },
-  { value: 1, label: "Reserved" },
-  { value: 2, label: "Completed" },
-  { value: 3, label: "Cancelled" },
-];
-
 export function SharedTripPlanPage() {
   const { token } = useParams();
   const [sharedTripPlan, setSharedTripPlan] = useState(null);
-  const [tripPlanForm, setTripPlanForm] = useState(emptyTripPlanForm);
-  const [destinationForm, setDestinationForm] = useState(emptyDestinationForm);
-  const [activityForm, setActivityForm] = useState(emptyActivityForm);
-  const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
-  const [checklistForm, setChecklistForm] = useState(emptyChecklistForm);
-  const [noteForm, setNoteForm] = useState(emptyNoteForm);
+  const [tripPlanForm, setTripPlanForm] = useState(createTripPlanFormModel);
+  const [destinationForm, setDestinationForm] = useState(createDestinationFormModel);
+  const [activityForm, setActivityForm] = useState(createActivityFormModel);
+  const [expenseForm, setExpenseForm] = useState(createExpenseFormModel);
+  const [checklistForm, setChecklistForm] = useState(createChecklistItemFormModel);
+  const [noteForm, setNoteForm] = useState(createNoteFormModel);
   const [activityViewMode, setActivityViewMode] = useState("list");
   const [editingDestinationId, setEditingDestinationId] = useState(null);
   const [editingActivityId, setEditingActivityId] = useState(null);
@@ -116,9 +81,9 @@ export function SharedTripPlanPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshSharedTripPlan = useCallback(async () => {
-    const data = await sharingApi.getSharedTripPlan(token);
+    const data = createSharedTripPlanModel(await sharingApi.getSharedTripPlan(token));
     setSharedTripPlan(data);
-    setTripPlanForm(toTripPlanForm(data?.tripPlan));
+    setTripPlanForm(createTripPlanFormModel(data.tripPlan));
     return data;
   }, [token]);
 
@@ -260,14 +225,7 @@ export function SharedTripPlanPage() {
     }
 
     await runSharedEdit(async () => {
-      await sharingApi.updateSharedTripPlan(token, {
-        title: tripPlanForm.title,
-        description: tripPlanForm.description || null,
-        startDate: toDateTime(tripPlanForm.startDate),
-        endDate: toDateTime(tripPlanForm.endDate),
-        plannedBudget: Number(tripPlanForm.plannedBudget || 0),
-        notes: tripPlanForm.notes || null,
-      });
+      await sharingApi.updateSharedTripPlan(token, createTripPlanRequestModel(tripPlanForm));
     }, "Plan je izmenjen.");
   };
 
@@ -279,13 +237,7 @@ export function SharedTripPlanPage() {
     }
 
     await runSharedEdit(async () => {
-      const payload = {
-        name: destinationForm.name,
-        location: destinationForm.location || null,
-        arrivalDate: toDateTime(destinationForm.arrivalDate),
-        departureDate: toDateTime(destinationForm.departureDate),
-        description: destinationForm.description || null,
-      };
+      const payload = createDestinationRequestModel(destinationForm);
 
       if (editingDestinationId) {
         await sharingApi.updateSharedDestination(token, editingDestinationId, payload);
@@ -304,18 +256,12 @@ export function SharedTripPlanPage() {
 
     setEditingDestinationId(destination.id);
     clearFormErrors("destination");
-    setDestinationForm({
-      name: destination.name ?? "",
-      location: destination.location ?? "",
-      arrivalDate: toDateInputValue(destination.arrivalDate),
-      departureDate: toDateInputValue(destination.departureDate),
-      description: destination.description ?? "",
-    });
+    setDestinationForm(createDestinationFormModel(destination));
   };
 
   const cancelDestinationEdit = () => {
     setEditingDestinationId(null);
-    setDestinationForm(emptyDestinationForm);
+    setDestinationForm(createDestinationFormModel());
     clearFormErrors("destination");
   };
 
@@ -336,15 +282,7 @@ export function SharedTripPlanPage() {
     }
 
     await runSharedEdit(async () => {
-      const payload = {
-        title: activityForm.title,
-        activityDate: toDateTime(activityForm.activityDate),
-        activityTime: activityForm.activityTime ? `${activityForm.activityTime}:00` : null,
-        location: activityForm.location || null,
-        description: activityForm.description || null,
-        estimatedCost: Number(activityForm.estimatedCost || 0),
-        status: Number(activityForm.status),
-      };
+      const payload = createActivityRequestModel(activityForm);
 
       if (editingActivityId) {
         await sharingApi.updateSharedActivity(token, editingActivityId, payload);
@@ -363,20 +301,12 @@ export function SharedTripPlanPage() {
 
     setEditingActivityId(activity.id);
     clearFormErrors("activity");
-    setActivityForm({
-      title: activity.title ?? "",
-      activityDate: toDateInputValue(activity.activityDate),
-      activityTime: toTimeInputValue(activity.activityTime),
-      location: activity.location ?? "",
-      description: activity.description ?? "",
-      estimatedCost: String(activity.estimatedCost ?? 0),
-      status: Number(activity.status ?? 0),
-    });
+    setActivityForm(createActivityFormModel(activity));
   };
 
   const cancelActivityEdit = () => {
     setEditingActivityId(null);
-    setActivityForm(emptyActivityForm);
+    setActivityForm(createActivityFormModel());
     clearFormErrors("activity");
   };
 
@@ -397,14 +327,7 @@ export function SharedTripPlanPage() {
     }
 
     await runSharedEdit(async () => {
-      const payload = {
-        tripPlanId: tripPlan?.id,
-        title: expenseForm.title,
-        category: Number(expenseForm.category),
-        amount: Number(expenseForm.amount || 0),
-        expenseDate: toDateTime(expenseForm.expenseDate),
-        description: expenseForm.description || null,
-      };
+      const payload = createExpenseRequestModel(expenseForm, tripPlan?.id);
 
       if (editingExpenseId) {
         await sharingApi.updateSharedExpense(token, editingExpenseId, {
@@ -429,18 +352,12 @@ export function SharedTripPlanPage() {
 
     setEditingExpenseId(expense.id);
     clearFormErrors("expense");
-    setExpenseForm({
-      title: expense.title ?? "",
-      category: Number(expense.category ?? 0),
-      amount: String(expense.amount ?? 0),
-      expenseDate: toDateInputValue(expense.expenseDate),
-      description: expense.description ?? "",
-    });
+    setExpenseForm(createExpenseFormModel(expense));
   };
 
   const cancelExpenseEdit = () => {
     setEditingExpenseId(null);
-    setExpenseForm(emptyExpenseForm);
+    setExpenseForm(createExpenseFormModel());
     clearFormErrors("expense");
   };
 
@@ -463,15 +380,15 @@ export function SharedTripPlanPage() {
     await runSharedEdit(async () => {
       if (editingChecklistItemId) {
         const checklistItem = checklistItems.find((item) => item.id === editingChecklistItemId);
-        await sharingApi.updateSharedChecklistItem(token, editingChecklistItemId, {
+        await sharingApi.updateSharedChecklistItem(token, editingChecklistItemId, createChecklistItemUpdateRequestModel({
           title: checklistForm.title,
           isCompleted: Boolean(checklistItem?.isCompleted),
-        });
+        }));
       } else {
-        await sharingApi.createSharedChecklistItem(token, {
-          tripPlanId: tripPlan?.id,
-          title: checklistForm.title,
-        });
+        await sharingApi.createSharedChecklistItem(
+          token,
+          createChecklistItemRequestModel(checklistForm, tripPlan?.id),
+        );
       }
 
       cancelChecklistEdit();
@@ -485,23 +402,21 @@ export function SharedTripPlanPage() {
 
     setEditingChecklistItemId(checklistItem.id);
     clearFormErrors("checklist");
-    setChecklistForm({
-      title: checklistItem.title ?? "",
-    });
+    setChecklistForm(createChecklistItemFormModel(checklistItem));
   };
 
   const cancelChecklistEdit = () => {
     setEditingChecklistItemId(null);
-    setChecklistForm(emptyChecklistForm);
+    setChecklistForm(createChecklistItemFormModel());
     clearFormErrors("checklist");
   };
 
   const toggleChecklistItem = async (checklistItem, isCompleted) => {
     await runSharedEdit(async () => {
-      await sharingApi.updateSharedChecklistItem(token, checklistItem.id, {
+      await sharingApi.updateSharedChecklistItem(token, checklistItem.id, createChecklistItemUpdateRequestModel({
         title: checklistItem.title,
         isCompleted,
-      });
+      }));
     }, "Checklist stavka je izmenjena.");
   };
 
@@ -522,11 +437,7 @@ export function SharedTripPlanPage() {
     }
 
     await runSharedEdit(async () => {
-      const payload = {
-        tripPlanId: tripPlan?.id,
-        title: noteForm.title,
-        content: noteForm.content || null,
-      };
+      const payload = createNoteRequestModel(noteForm, tripPlan?.id);
 
       if (editingNoteId) {
         await sharingApi.updateSharedNote(token, editingNoteId, {
@@ -548,15 +459,12 @@ export function SharedTripPlanPage() {
 
     setEditingNoteId(note.id);
     clearFormErrors("note");
-    setNoteForm({
-      title: note.title ?? "",
-      content: note.content ?? "",
-    });
+    setNoteForm(createNoteFormModel(note));
   };
 
   const cancelNoteEdit = () => {
     setEditingNoteId(null);
-    setNoteForm(emptyNoteForm);
+    setNoteForm(createNoteFormModel());
     clearFormErrors("note");
   };
 
@@ -1167,7 +1075,7 @@ export function SharedTripPlanPage() {
                             onChange={(event) => updateSharedFormField("activity", setActivityForm, event)}
                             value={activityForm.status}
                           >
-                            {activityStatuses.map((status) => (
+                            {ACTIVITY_STATUSES.map((status) => (
                               <option key={status.value} value={status.value}>
                                 {status.label}
                               </option>
@@ -1413,26 +1321,11 @@ function resetEditState(
   setEditingExpenseId(null);
   setEditingChecklistItemId(null);
   setEditingNoteId(null);
-  setDestinationForm(emptyDestinationForm);
-  setActivityForm(emptyActivityForm);
-  setExpenseForm(emptyExpenseForm);
-  setChecklistForm(emptyChecklistForm);
-  setNoteForm(emptyNoteForm);
-}
-
-function toTripPlanForm(tripPlan) {
-  if (!tripPlan) {
-    return emptyTripPlanForm;
-  }
-
-  return {
-    title: tripPlan.title ?? "",
-    description: tripPlan.description ?? "",
-    startDate: toDateInputValue(tripPlan.startDate),
-    endDate: toDateInputValue(tripPlan.endDate),
-    plannedBudget: String(tripPlan.plannedBudget ?? 0),
-    notes: tripPlan.notes ?? "",
-  };
+  setDestinationForm(createDestinationFormModel());
+  setActivityForm(createActivityFormModel());
+  setExpenseForm(createExpenseFormModel());
+  setChecklistForm(createChecklistItemFormModel());
+  setNoteForm(createNoteFormModel());
 }
 
 function updateForm(setForm, event) {
@@ -1441,26 +1334,6 @@ function updateForm(setForm, event) {
     ...currentForm,
     [name]: value,
   }));
-}
-
-function toDateInputValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  return String(value).slice(0, 10);
-}
-
-function toTimeInputValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  return String(value).slice(0, 5);
-}
-
-function toDateTime(dateValue) {
-  return dateValue ? `${dateValue}T00:00:00` : null;
 }
 
 function compareActivities(first, second) {
@@ -1523,21 +1396,21 @@ function formatMoney(value) {
 
 function getStatusLabel(value) {
   const numericValue = Number(value);
-  return activityStatuses.find((status) => status.value === numericValue)?.label ?? "Planned";
+  return ACTIVITY_STATUSES.find((status) => status.value === numericValue)?.label ?? "Planned";
 }
 
 function getStatusClass(value) {
   const numericValue = Number(value);
 
-  if (numericValue === 1) {
+  if (numericValue === ACTIVITY_STATUS.RESERVED) {
     return "status-reserved";
   }
 
-  if (numericValue === 2) {
+  if (numericValue === ACTIVITY_STATUS.COMPLETED) {
     return "status-completed";
   }
 
-  if (numericValue === 3) {
+  if (numericValue === ACTIVITY_STATUS.CANCELLED) {
     return "status-cancelled";
   }
 

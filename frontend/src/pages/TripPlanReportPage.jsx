@@ -8,14 +8,15 @@ import { destinationsApi } from "../api/destinationsApi.js";
 import { notesApi } from "../api/notesApi.js";
 import { remindersApi } from "../api/remindersApi.js";
 import { tripPlansApi } from "../api/tripPlansApi.js";
-import { EXPENSE_CATEGORIES } from "../models/budget.js";
-
-const activityStatuses = [
-  { value: 0, label: "Planned" },
-  { value: 1, label: "Reserved" },
-  { value: 2, label: "Completed" },
-  { value: 3, label: "Cancelled" },
-];
+import {
+  EXPENSE_CATEGORIES,
+  createBudgetSummaryModel,
+  normalizeExpenses,
+} from "../models/budget.js";
+import { normalizeChecklistItems } from "../models/checklist.js";
+import { normalizeNotes } from "../models/notes.js";
+import { normalizeReminders } from "../models/reminders.js";
+import { ACTIVITY_STATUSES, createTripPlanModel, normalizeActivities, normalizeDestinations } from "../models/tripPlan.js";
 
 export function TripPlanReportPage() {
   const { tripPlanId } = useParams();
@@ -61,14 +62,14 @@ export function TripPlanReportPage() {
         remindersApi.getReminders(tripPlanId),
       ]);
 
-      setTripPlan(loadedTripPlan);
-      setDestinations(loadedDestinations ?? []);
-      setActivities(loadedActivities ?? []);
-      setExpenses(loadedExpenses ?? []);
-      setBudgetSummary(loadedBudgetSummary);
-      setChecklistItems(loadedChecklistItems ?? []);
-      setNotes(loadedNotes ?? []);
-      setReminders(loadedReminders ?? []);
+      setTripPlan(createTripPlanModel(loadedTripPlan));
+      setDestinations(normalizeDestinations(loadedDestinations));
+      setActivities(normalizeActivities(loadedActivities));
+      setExpenses(normalizeExpenses(loadedExpenses));
+      setBudgetSummary(loadedBudgetSummary ? createBudgetSummaryModel(loadedBudgetSummary) : null);
+      setChecklistItems(normalizeChecklistItems(loadedChecklistItems));
+      setNotes(normalizeNotes(loadedNotes));
+      setReminders(normalizeReminders(loadedReminders));
     } catch (requestError) {
       setTripPlan(null);
       setError(requestError.message || "Izvestaj nije moguce ucitati.");
@@ -321,7 +322,7 @@ function formatMoney(value) {
 
 function getStatusLabel(value) {
   const numericValue = Number(value);
-  return activityStatuses.find((status) => status.value === numericValue)?.label ?? "Planned";
+  return ACTIVITY_STATUSES.find((status) => status.value === numericValue)?.label ?? "Planned";
 }
 
 function getExpenseCategoryLabel(value) {

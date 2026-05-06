@@ -105,8 +105,10 @@ Preporuceni redosled pokretanja migracija:
 2. `backend/database/migrations/trip-planning/001_create_trip_planning_schema.sql`
 3. `backend/database/migrations/trip-planning/002_create_checklist_items.sql`
 4. `backend/database/migrations/trip-planning/003_create_notes.sql`
-5. `backend/database/migrations/budget/001_create_budget_schema.sql`
-6. `backend/database/migrations/sharing/001_create_share_tokens.sql`
+5. `backend/database/migrations/trip-planning/004_create_reminders.sql`
+6. `backend/database/migrations/trip-planning/005_add_trip_plan_owner_cascade.sql`
+7. `backend/database/migrations/budget/001_create_budget_schema.sql`
+8. `backend/database/migrations/sharing/001_create_share_tokens.sql`
 
 Migracije se pokrecu nad Microsoft SQL Server bazom. Budget i sharing tabele imaju veze ka `TripPlans`, zato se trip-planning migracije pokrecu pre njih.
 

@@ -6,7 +6,7 @@ namespace IdentityService.Validation;
 
 internal static class RegisterRequestValidator
 {
-    private const int MinimumPasswordLength = 8;
+    private const int MinimumPasswordLength = 7;
     private static readonly EmailAddressAttribute EmailValidator = new();
 
     public static List<ValidationErrorDto> Validate(RegisterRequestDto request)

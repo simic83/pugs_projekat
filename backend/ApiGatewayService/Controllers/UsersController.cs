@@ -62,15 +62,6 @@ public sealed class UsersController : ControllerBase
             return BadRequest(Failure("Admin cannot delete their own account."));
         }
 
-        var tripPlanningService = GatewayServiceProxyFactory.CreateStateful<ITripPlanningService>(ServiceNames.TripPlanningServiceUri);
-        var userHasTripPlans = (await tripPlanningService.GetAllTripPlansForAdminAsync())
-            .Any(tripPlan => tripPlan.OwnerUserId == userId);
-
-        if (userHasTripPlans)
-        {
-            return BadRequest(Failure("User cannot be deleted while they still own trip plans."));
-        }
-
         var identityService = GatewayServiceProxyFactory.CreateStateless<IIdentityService>(ServiceNames.IdentityServiceUri);
         var result = await identityService.DeleteUserAsync(userId);
 
