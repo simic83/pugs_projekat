@@ -20,9 +20,9 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { sharingApi } from "../api/sharingApi.js";
 import { ActivityCalendar } from "../components/ActivityCalendar.jsx";
 import { FormFieldError } from "../components/trips/FormFieldError.jsx";
+import { useApp } from "../context/AppContext.jsx";
 import { EXPENSE_CATEGORIES, createExpenseFormModel, createExpenseRequestModel } from "../models/budget.js";
 import {
   createChecklistItemFormModel,
@@ -30,7 +30,7 @@ import {
   createChecklistItemUpdateRequestModel,
 } from "../models/checklist.js";
 import { createNoteFormModel, createNoteRequestModel } from "../models/notes.js";
-import { SHARE_ACCESS_LEVELS, createSharedTripPlanModel } from "../models/sharing.js";
+import { SHARE_ACCESS_LEVELS } from "../models/sharing.js";
 import {
   ACTIVITY_STATUS,
   ACTIVITY_STATUSES,
@@ -61,6 +61,7 @@ const emptyFormErrors = {
 };
 
 export function SharedTripPlanPage() {
+  const { sharedTripPlanService } = useApp();
   const { token } = useParams();
   const [sharedTripPlan, setSharedTripPlan] = useState(null);
   const [tripPlanForm, setTripPlanForm] = useState(createTripPlanFormModel);
@@ -81,11 +82,11 @@ export function SharedTripPlanPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshSharedTripPlan = useCallback(async () => {
-    const data = createSharedTripPlanModel(await sharingApi.getSharedTripPlan(token));
+    const data = await sharedTripPlanService.getByToken(token);
     setSharedTripPlan(data);
     setTripPlanForm(createTripPlanFormModel(data.tripPlan));
     return data;
-  }, [token]);
+  }, [sharedTripPlanService, token]);
 
   const loadSharedTripPlan = useCallback(async () => {
     if (!token) {
@@ -225,7 +226,7 @@ export function SharedTripPlanPage() {
     }
 
     await runSharedEdit(async () => {
-      await sharingApi.updateSharedTripPlan(token, createTripPlanRequestModel(tripPlanForm));
+      await sharedTripPlanService.updateTripPlan(token, createTripPlanRequestModel(tripPlanForm));
     }, "Plan je izmenjen.");
   };
 
@@ -238,12 +239,7 @@ export function SharedTripPlanPage() {
 
     await runSharedEdit(async () => {
       const payload = createDestinationRequestModel(destinationForm);
-
-      if (editingDestinationId) {
-        await sharingApi.updateSharedDestination(token, editingDestinationId, payload);
-      } else {
-        await sharingApi.createSharedDestination(token, payload);
-      }
+      await sharedTripPlanService.saveDestination(token, editingDestinationId, payload);
 
       cancelDestinationEdit();
     }, editingDestinationId ? "Destinacija je izmenjena." : "Destinacija je dodata.");
@@ -267,7 +263,7 @@ export function SharedTripPlanPage() {
 
   const deleteDestination = async (destinationId) => {
     await runSharedEdit(async () => {
-      await sharingApi.deleteSharedDestination(token, destinationId);
+      await sharedTripPlanService.deleteDestination(token, destinationId);
       if (editingDestinationId === destinationId) {
         cancelDestinationEdit();
       }
@@ -283,12 +279,7 @@ export function SharedTripPlanPage() {
 
     await runSharedEdit(async () => {
       const payload = createActivityRequestModel(activityForm);
-
-      if (editingActivityId) {
-        await sharingApi.updateSharedActivity(token, editingActivityId, payload);
-      } else {
-        await sharingApi.createSharedActivity(token, payload);
-      }
+      await sharedTripPlanService.saveActivity(token, editingActivityId, payload);
 
       cancelActivityEdit();
     }, editingActivityId ? "Aktivnost je izmenjena." : "Aktivnost je dodata.");
@@ -312,7 +303,7 @@ export function SharedTripPlanPage() {
 
   const deleteActivity = async (activityId) => {
     await runSharedEdit(async () => {
-      await sharingApi.deleteSharedActivity(token, activityId);
+      await sharedTripPlanService.deleteActivity(token, activityId);
       if (editingActivityId === activityId) {
         cancelActivityEdit();
       }
@@ -330,7 +321,7 @@ export function SharedTripPlanPage() {
       const payload = createExpenseRequestModel(expenseForm, tripPlan?.id);
 
       if (editingExpenseId) {
-        await sharingApi.updateSharedExpense(token, editingExpenseId, {
+        await sharedTripPlanService.saveExpense(token, editingExpenseId, {
           title: payload.title,
           category: payload.category,
           amount: payload.amount,
@@ -338,7 +329,7 @@ export function SharedTripPlanPage() {
           description: payload.description,
         });
       } else {
-        await sharingApi.createSharedExpense(token, payload);
+        await sharedTripPlanService.saveExpense(token, null, payload);
       }
 
       cancelExpenseEdit();
@@ -363,7 +354,7 @@ export function SharedTripPlanPage() {
 
   const deleteExpense = async (expenseId) => {
     await runSharedEdit(async () => {
-      await sharingApi.deleteSharedExpense(token, expenseId);
+      await sharedTripPlanService.deleteExpense(token, expenseId);
       if (editingExpenseId === expenseId) {
         cancelExpenseEdit();
       }
@@ -380,13 +371,14 @@ export function SharedTripPlanPage() {
     await runSharedEdit(async () => {
       if (editingChecklistItemId) {
         const checklistItem = checklistItems.find((item) => item.id === editingChecklistItemId);
-        await sharingApi.updateSharedChecklistItem(token, editingChecklistItemId, createChecklistItemUpdateRequestModel({
+        await sharedTripPlanService.saveChecklistItem(token, editingChecklistItemId, createChecklistItemUpdateRequestModel({
           title: checklistForm.title,
           isCompleted: Boolean(checklistItem?.isCompleted),
         }));
       } else {
-        await sharingApi.createSharedChecklistItem(
+        await sharedTripPlanService.saveChecklistItem(
           token,
+          null,
           createChecklistItemRequestModel(checklistForm, tripPlan?.id),
         );
       }
@@ -413,7 +405,7 @@ export function SharedTripPlanPage() {
 
   const toggleChecklistItem = async (checklistItem, isCompleted) => {
     await runSharedEdit(async () => {
-      await sharingApi.updateSharedChecklistItem(token, checklistItem.id, createChecklistItemUpdateRequestModel({
+      await sharedTripPlanService.saveChecklistItem(token, checklistItem.id, createChecklistItemUpdateRequestModel({
         title: checklistItem.title,
         isCompleted,
       }));
@@ -422,7 +414,7 @@ export function SharedTripPlanPage() {
 
   const deleteChecklistItem = async (checklistItemId) => {
     await runSharedEdit(async () => {
-      await sharingApi.deleteSharedChecklistItem(token, checklistItemId);
+      await sharedTripPlanService.deleteChecklistItem(token, checklistItemId);
       if (editingChecklistItemId === checklistItemId) {
         cancelChecklistEdit();
       }
@@ -440,12 +432,12 @@ export function SharedTripPlanPage() {
       const payload = createNoteRequestModel(noteForm, tripPlan?.id);
 
       if (editingNoteId) {
-        await sharingApi.updateSharedNote(token, editingNoteId, {
+        await sharedTripPlanService.saveNote(token, editingNoteId, {
           title: payload.title,
           content: payload.content,
         });
       } else {
-        await sharingApi.createSharedNote(token, payload);
+        await sharedTripPlanService.saveNote(token, null, payload);
       }
 
       cancelNoteEdit();
@@ -470,7 +462,7 @@ export function SharedTripPlanPage() {
 
   const deleteNote = async (noteId) => {
     await runSharedEdit(async () => {
-      await sharingApi.deleteSharedNote(token, noteId);
+      await sharedTripPlanService.deleteNote(token, noteId);
       if (editingNoteId === noteId) {
         cancelNoteEdit();
       }

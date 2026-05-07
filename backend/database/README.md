@@ -33,7 +33,16 @@ Ova skripta:
 - kreira bazu `TravelPlannerDb` ako ne postoji,
 - pokrece `USE TravelPlannerDb`,
 - kreira sve tabele redom,
-- seed-uje role `User` i `Admin` bez dupliranja.
+- seed-uje role `User` i `Admin` bez dupliranja,
+- kreira prvi admin nalog ako ne postoji nijedan admin u bazi.
+
+Podrazumevani bootstrap admin za cistu instalaciju:
+
+```text
+login: admin
+email: admin@travelplanner.local
+lozinka: admin123
+```
 
 ## Pojedinacne migracije
 

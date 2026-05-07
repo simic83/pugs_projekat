@@ -53,3 +53,53 @@ BEGIN
     INSERT INTO dbo.Roles (Name) VALUES (N'Admin');
 END;
 GO
+
+DECLARE @BootstrapAdminEmail NVARCHAR(320) = N'admin@travelplanner.local';
+DECLARE @BootstrapAdminUserId UNIQUEIDENTIFIER;
+DECLARE @AdminRoleId INT;
+
+SELECT @AdminRoleId = RoleId
+FROM dbo.Roles
+WHERE Name = N'Admin';
+
+IF @AdminRoleId IS NOT NULL
+    AND NOT EXISTS
+    (
+        SELECT 1
+        FROM dbo.UserRoles userRole
+        INNER JOIN dbo.Roles roleRecord ON roleRecord.RoleId = userRole.RoleId
+        WHERE roleRecord.Name = N'Admin'
+    )
+BEGIN
+    SELECT @BootstrapAdminUserId = UserId
+    FROM dbo.Users
+    WHERE Email = @BootstrapAdminEmail;
+
+    IF @BootstrapAdminUserId IS NULL
+    BEGIN
+        SET @BootstrapAdminUserId = CAST(N'11111111-1111-1111-1111-111111111111' AS UNIQUEIDENTIFIER);
+
+        INSERT INTO dbo.Users (UserId, Name, Email, PasswordHash, CreatedAtUtc)
+        VALUES
+        (
+            @BootstrapAdminUserId,
+            N'admin',
+            @BootstrapAdminEmail,
+            N'PBKDF2-SHA256$100000$QWRtaW5TZWVkU2FsdDEyMw==$wC8VScJnqu3wE4lxE2vuRCKf5+N12yg4803P6pamDi4=',
+            SYSUTCDATETIME()
+        );
+    END;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM dbo.UserRoles
+        WHERE UserId = @BootstrapAdminUserId
+            AND RoleId = @AdminRoleId
+    )
+    BEGIN
+        INSERT INTO dbo.UserRoles (UserId, RoleId)
+        VALUES (@BootstrapAdminUserId, @AdminRoleId);
+    END;
+END;
+GO

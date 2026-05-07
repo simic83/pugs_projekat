@@ -1,24 +1,12 @@
 import { ArrowLeft, Printer } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { activitiesApi } from "../api/activitiesApi.js";
-import { budgetApi } from "../api/budgetApi.js";
-import { checklistApi } from "../api/checklistApi.js";
-import { destinationsApi } from "../api/destinationsApi.js";
-import { notesApi } from "../api/notesApi.js";
-import { remindersApi } from "../api/remindersApi.js";
-import { tripPlansApi } from "../api/tripPlansApi.js";
-import {
-  EXPENSE_CATEGORIES,
-  createBudgetSummaryModel,
-  normalizeExpenses,
-} from "../models/budget.js";
-import { normalizeChecklistItems } from "../models/checklist.js";
-import { normalizeNotes } from "../models/notes.js";
-import { normalizeReminders } from "../models/reminders.js";
-import { ACTIVITY_STATUSES, createTripPlanModel, normalizeActivities, normalizeDestinations } from "../models/tripPlan.js";
+import { useApp } from "../context/AppContext.jsx";
+import { EXPENSE_CATEGORIES } from "../models/budget.js";
+import { ACTIVITY_STATUSES } from "../models/tripPlan.js";
 
 export function TripPlanReportPage() {
+  const { tripPlanReportService } = useApp();
   const { tripPlanId } = useParams();
   const [tripPlan, setTripPlan] = useState(null);
   const [destinations, setDestinations] = useState([]);
@@ -42,41 +30,22 @@ export function TripPlanReportPage() {
     setIsLoading(true);
 
     try {
-      const [
-        loadedTripPlan,
-        loadedDestinations,
-        loadedActivities,
-        loadedExpenses,
-        loadedBudgetSummary,
-        loadedChecklistItems,
-        loadedNotes,
-        loadedReminders,
-      ] = await Promise.all([
-        tripPlansApi.getById(tripPlanId),
-        destinationsApi.getByTripPlanId(tripPlanId),
-        activitiesApi.getByTripPlanId(tripPlanId),
-        budgetApi.getExpenses(tripPlanId),
-        budgetApi.getBudgetSummary(tripPlanId),
-        checklistApi.getChecklistItems(tripPlanId),
-        notesApi.getNotes(tripPlanId),
-        remindersApi.getReminders(tripPlanId),
-      ]);
-
-      setTripPlan(createTripPlanModel(loadedTripPlan));
-      setDestinations(normalizeDestinations(loadedDestinations));
-      setActivities(normalizeActivities(loadedActivities));
-      setExpenses(normalizeExpenses(loadedExpenses));
-      setBudgetSummary(loadedBudgetSummary ? createBudgetSummaryModel(loadedBudgetSummary) : null);
-      setChecklistItems(normalizeChecklistItems(loadedChecklistItems));
-      setNotes(normalizeNotes(loadedNotes));
-      setReminders(normalizeReminders(loadedReminders));
+      const report = await tripPlanReportService.getByTripPlanId(tripPlanId);
+      setTripPlan(report.tripPlan);
+      setDestinations(report.destinations);
+      setActivities(report.activities);
+      setExpenses(report.expenses);
+      setBudgetSummary(report.budgetSummary);
+      setChecklistItems(report.checklistItems);
+      setNotes(report.notes);
+      setReminders(report.reminders);
     } catch (requestError) {
       setTripPlan(null);
       setError(requestError.message || "Izvestaj nije moguce ucitati.");
     } finally {
       setIsLoading(false);
     }
-  }, [tripPlanId]);
+  }, [tripPlanId, tripPlanReportService]);
 
   useEffect(() => {
     void loadReport();

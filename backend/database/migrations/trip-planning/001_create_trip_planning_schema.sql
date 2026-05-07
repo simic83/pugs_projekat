@@ -16,6 +16,8 @@ BEGIN
         CONSTRAINT FK_TripPlans_Users FOREIGN KEY (OwnerUserId)
             REFERENCES dbo.Users (UserId)
             ON DELETE CASCADE,
+        CONSTRAINT CK_TripPlans_DatesRequired CHECK
+            (StartDate > CONVERT(date, '00010101', 112) AND EndDate > CONVERT(date, '00010101', 112)),
         CONSTRAINT CK_TripPlans_DateRange CHECK (EndDate >= StartDate),
         CONSTRAINT CK_TripPlans_PlannedBudget CHECK (PlannedBudget >= 0)
     );
@@ -78,6 +80,8 @@ BEGIN
         CONSTRAINT FK_Destinations_TripPlans FOREIGN KEY (TripPlanId)
             REFERENCES dbo.TripPlans (Id)
             ON DELETE CASCADE,
+        CONSTRAINT CK_Destinations_DatesRequired CHECK
+            (ArrivalDate > CONVERT(date, '00010101', 112) AND DepartureDate > CONVERT(date, '00010101', 112)),
         CONSTRAINT CK_Destinations_DateRange CHECK (DepartureDate >= ArrivalDate)
     );
 END;
@@ -102,6 +106,7 @@ BEGIN
         CONSTRAINT FK_Activities_TripPlans FOREIGN KEY (TripPlanId)
             REFERENCES dbo.TripPlans (Id)
             ON DELETE CASCADE,
+        CONSTRAINT CK_Activities_DateRequired CHECK (ActivityDate > CONVERT(date, '00010101', 112)),
         CONSTRAINT CK_Activities_EstimatedCost CHECK (EstimatedCost >= 0)
     );
 END;

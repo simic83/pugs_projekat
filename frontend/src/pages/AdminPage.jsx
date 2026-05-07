@@ -1,11 +1,11 @@
 import { MapPinned, RefreshCw, Save, Trash2, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { adminApi } from "../api/adminApi.js";
+import { useApp } from "../context/AppContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
-import { USER_ROLES, getRoleNames, normalizeUsers } from "../models/auth.js";
-import { normalizeAdminTripPlans } from "../models/tripPlan.js";
+import { USER_ROLES, getRoleNames } from "../models/auth.js";
 
 export function AdminPage() {
+  const { adminService } = useApp();
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [tripPlans, setTripPlans] = useState([]);
@@ -22,10 +22,9 @@ export function AdminPage() {
     setError("");
 
     try {
-      const [loadedUsers, loadedTripPlans] = await Promise.all([adminApi.getUsers(), adminApi.getAllTripPlans()]);
-      const userModels = normalizeUsers(loadedUsers);
+      const { users: userModels, tripPlans: tripPlanModels } = await adminService.getDashboard();
       setUsers(userModels);
-      setTripPlans(normalizeAdminTripPlans(loadedTripPlans));
+      setTripPlans(tripPlanModels);
       setRoleDrafts(
         Object.fromEntries(userModels.map((user) => [user.id, getPrimaryRole(user)])),
       );
@@ -34,7 +33,7 @@ export function AdminPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [adminService]);
 
   useEffect(() => {
     void loadAdminData();
@@ -53,7 +52,7 @@ export function AdminPage() {
     setMessage("");
 
     try {
-      await adminApi.changeUserRole(userId, roleDrafts[userId] ?? USER_ROLES.USER);
+      await adminService.changeUserRole(userId, roleDrafts[userId] ?? USER_ROLES.USER);
       setMessage("Uloga korisnika je sacuvana.");
       await loadAdminData();
     } catch (saveError) {
@@ -80,7 +79,7 @@ export function AdminPage() {
     setMessage("");
 
     try {
-      await adminApi.deleteUser(selectedUser.id);
+      await adminService.deleteUser(selectedUser.id);
       setUsers((current) => current.filter((user) => user.id !== selectedUser.id));
       setMessage("Korisnik je obrisan.");
       await loadAdminData();
@@ -102,7 +101,7 @@ export function AdminPage() {
     setMessage("");
 
     try {
-      await adminApi.deleteTripPlan(tripPlan.id);
+      await adminService.deleteTripPlan(tripPlan.id);
       setTripPlans((current) => current.filter((currentTripPlan) => currentTripPlan.id !== tripPlan.id));
       setMessage("Plan putovanja je obrisan.");
     } catch (deleteError) {

@@ -169,6 +169,11 @@ namespace SharingService
                     return null;
                 }
 
+                if (!await ExistingScheduledItemsFitTripPlanAsync(shareToken.TripPlanId, request.StartDate, request.EndDate))
+                {
+                    return null;
+                }
+
                 tripPlan.Title = request.Title.Trim();
                 tripPlan.Description = NormalizeOptionalText(request.Description);
                 tripPlan.StartDate = request.StartDate.Date;
@@ -189,15 +194,16 @@ namespace SharingService
 
         public async Task<DestinationDto?> CreateSharedDestinationAsync(string token, CreateDestinationRequestDto request)
         {
-            if (!IsValidDestination(request.Name, request.ArrivalDate, request.DepartureDate))
-            {
-                return null;
-            }
-
             try
             {
                 var shareToken = await ValidateShareTokenForEditAsync(token);
-                if (shareToken is null || await repository.GetTripPlanByIdAsync(shareToken.TripPlanId) is null)
+                if (shareToken is null)
+                {
+                    return null;
+                }
+
+                var tripPlan = await repository.GetTripPlanByIdAsync(shareToken.TripPlanId);
+                if (tripPlan is null || !IsValidDestination(request.Name, request.ArrivalDate, request.DepartureDate, tripPlan))
                 {
                     return null;
                 }
@@ -229,7 +235,7 @@ namespace SharingService
             Guid destinationId,
             UpdateDestinationRequestDto request)
         {
-            if (destinationId == Guid.Empty || !IsValidDestination(request.Name, request.ArrivalDate, request.DepartureDate))
+            if (destinationId == Guid.Empty)
             {
                 return null;
             }
@@ -238,6 +244,12 @@ namespace SharingService
             {
                 var shareToken = await ValidateShareTokenForEditAsync(token);
                 if (shareToken is null)
+                {
+                    return null;
+                }
+
+                var tripPlan = await repository.GetTripPlanByIdAsync(shareToken.TripPlanId);
+                if (tripPlan is null || !IsValidDestination(request.Name, request.ArrivalDate, request.DepartureDate, tripPlan))
                 {
                     return null;
                 }
@@ -292,15 +304,16 @@ namespace SharingService
 
         public async Task<ActivityDto?> CreateSharedActivityAsync(string token, CreateActivityRequestDto request)
         {
-            if (!IsValidActivity(request.Title, request.EstimatedCost, request.Status))
-            {
-                return null;
-            }
-
             try
             {
                 var shareToken = await ValidateShareTokenForEditAsync(token);
-                if (shareToken is null || await repository.GetTripPlanByIdAsync(shareToken.TripPlanId) is null)
+                if (shareToken is null)
+                {
+                    return null;
+                }
+
+                var tripPlan = await repository.GetTripPlanByIdAsync(shareToken.TripPlanId);
+                if (tripPlan is null || !IsValidActivity(request.Title, request.ActivityDate, request.EstimatedCost, request.Status, tripPlan))
                 {
                     return null;
                 }
@@ -334,7 +347,7 @@ namespace SharingService
             Guid activityId,
             UpdateActivityRequestDto request)
         {
-            if (activityId == Guid.Empty || !IsValidActivity(request.Title, request.EstimatedCost, request.Status))
+            if (activityId == Guid.Empty)
             {
                 return null;
             }
@@ -343,6 +356,12 @@ namespace SharingService
             {
                 var shareToken = await ValidateShareTokenForEditAsync(token);
                 if (shareToken is null)
+                {
+                    return null;
+                }
+
+                var tripPlan = await repository.GetTripPlanByIdAsync(shareToken.TripPlanId);
+                if (tripPlan is null || !IsValidActivity(request.Title, request.ActivityDate, request.EstimatedCost, request.Status, tripPlan))
                 {
                     return null;
                 }
@@ -775,24 +794,75 @@ namespace SharingService
                 && (!request.ExpiresAt.HasValue || request.ExpiresAt.Value > DateTime.UtcNow);
         }
 
+        private async Task<bool> ExistingScheduledItemsFitTripPlanAsync(Guid tripPlanId, DateTime startDate, DateTime endDate)
+        {
+            var destinations = await repository.GetDestinationsByTripPlanIdAsync(tripPlanId);
+            if (destinations.Any(destination => !IsDateRangeWithinRange(destination.ArrivalDate, destination.DepartureDate, startDate, endDate)))
+            {
+                return false;
+            }
+
+            var activities = await repository.GetActivitiesByTripPlanIdAsync(tripPlanId);
+            return activities.All(activity => IsDateWithinRange(activity.ActivityDate, startDate, endDate));
+        }
+
         private static bool IsValidTripPlan(string title, DateTime startDate, DateTime endDate, decimal plannedBudget)
         {
             return !string.IsNullOrWhiteSpace(title)
-                && endDate.Date >= startDate.Date
+                && IsValidDateRange(startDate, endDate)
                 && plannedBudget >= 0;
         }
 
-        private static bool IsValidDestination(string name, DateTime arrivalDate, DateTime departureDate)
+        private static bool IsValidDestination(string name, DateTime arrivalDate, DateTime departureDate, TripPlanModel tripPlan)
         {
             return !string.IsNullOrWhiteSpace(name)
-                && departureDate.Date >= arrivalDate.Date;
+                && IsDateRangeWithinTrip(arrivalDate, departureDate, tripPlan);
         }
 
-        private static bool IsValidActivity(string title, decimal estimatedCost, ActivityStatus status)
+        private static bool IsValidActivity(string title, DateTime activityDate, decimal estimatedCost, ActivityStatus status, TripPlanModel tripPlan)
         {
             return !string.IsNullOrWhiteSpace(title)
+                && IsDateWithinTrip(activityDate, tripPlan)
                 && estimatedCost >= 0
                 && Enum.IsDefined(typeof(ActivityStatus), status);
+        }
+
+        private static bool IsValidDateRange(DateTime startDate, DateTime endDate)
+        {
+            return IsRequiredDate(startDate)
+                && IsRequiredDate(endDate)
+                && endDate.Date >= startDate.Date;
+        }
+
+        private static bool IsDateRangeWithinTrip(DateTime startDate, DateTime endDate, TripPlanModel tripPlan)
+        {
+            return IsDateRangeWithinRange(startDate, endDate, tripPlan.StartDate, tripPlan.EndDate);
+        }
+
+        private static bool IsDateRangeWithinRange(DateTime startDate, DateTime endDate, DateTime rangeStart, DateTime rangeEnd)
+        {
+            return IsValidDateRange(startDate, endDate)
+                && IsValidDateRange(rangeStart, rangeEnd)
+                && startDate.Date >= rangeStart.Date
+                && endDate.Date <= rangeEnd.Date;
+        }
+
+        private static bool IsDateWithinTrip(DateTime date, TripPlanModel tripPlan)
+        {
+            return IsDateWithinRange(date, tripPlan.StartDate, tripPlan.EndDate);
+        }
+
+        private static bool IsDateWithinRange(DateTime date, DateTime rangeStart, DateTime rangeEnd)
+        {
+            return IsRequiredDate(date)
+                && IsValidDateRange(rangeStart, rangeEnd)
+                && date.Date >= rangeStart.Date
+                && date.Date <= rangeEnd.Date;
+        }
+
+        private static bool IsRequiredDate(DateTime date)
+        {
+            return date.Date != default;
         }
 
         private static bool IsValidExpense(

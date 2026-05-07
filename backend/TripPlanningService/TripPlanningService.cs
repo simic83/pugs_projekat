@@ -129,6 +129,11 @@ namespace TripPlanningService
                     return null;
                 }
 
+                if (!await ExistingScheduledItemsFitTripPlanAsync(tripPlanId, request.StartDate, request.EndDate))
+                {
+                    return null;
+                }
+
                 tripPlan.Title = request.Title.Trim();
                 tripPlan.Description = NormalizeOptionalText(request.Description);
                 tripPlan.StartDate = request.StartDate.Date;
@@ -208,15 +213,10 @@ namespace TripPlanningService
 
         public async Task<DestinationDto?> CreateDestinationAsync(Guid tripPlanId, Guid userId, CreateDestinationRequestDto request)
         {
-            if (!IsValidDestination(request.Name, request.ArrivalDate, request.DepartureDate))
-            {
-                return null;
-            }
-
             try
             {
                 var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
-                if (tripPlan is null)
+                if (tripPlan is null || !IsValidDestination(request.Name, request.ArrivalDate, request.DepartureDate, tripPlan))
                 {
                     return null;
                 }
@@ -249,15 +249,10 @@ namespace TripPlanningService
             Guid userId,
             UpdateDestinationRequestDto request)
         {
-            if (!IsValidDestination(request.Name, request.ArrivalDate, request.DepartureDate))
-            {
-                return null;
-            }
-
             try
             {
                 var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
-                if (tripPlan is null)
+                if (tripPlan is null || !IsValidDestination(request.Name, request.ArrivalDate, request.DepartureDate, tripPlan))
                 {
                     return null;
                 }
@@ -333,15 +328,10 @@ namespace TripPlanningService
 
         public async Task<ActivityDto?> CreateActivityAsync(Guid tripPlanId, Guid userId, CreateActivityRequestDto request)
         {
-            if (!IsValidActivity(request.Title, request.EstimatedCost, request.Status))
-            {
-                return null;
-            }
-
             try
             {
                 var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
-                if (tripPlan is null)
+                if (tripPlan is null || !IsValidActivity(request.Title, request.ActivityDate, request.EstimatedCost, request.Status, tripPlan))
                 {
                     return null;
                 }
@@ -376,15 +366,10 @@ namespace TripPlanningService
             Guid userId,
             UpdateActivityRequestDto request)
         {
-            if (!IsValidActivity(request.Title, request.EstimatedCost, request.Status))
-            {
-                return null;
-            }
-
             try
             {
                 var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
-                if (tripPlan is null)
+                if (tripPlan is null || !IsValidActivity(request.Title, request.ActivityDate, request.EstimatedCost, request.Status, tripPlan))
                 {
                     return null;
                 }
@@ -827,25 +812,76 @@ namespace TripPlanningService
             return tripPlan?.OwnerUserId == userId ? tripPlan : null;
         }
 
+        private async Task<bool> ExistingScheduledItemsFitTripPlanAsync(Guid tripPlanId, DateTime startDate, DateTime endDate)
+        {
+            var destinations = await repository.GetDestinationsByTripPlanIdAsync(tripPlanId);
+            if (destinations.Any(destination => !IsDateRangeWithinRange(destination.ArrivalDate, destination.DepartureDate, startDate, endDate)))
+            {
+                return false;
+            }
+
+            var activities = await repository.GetActivitiesByTripPlanIdAsync(tripPlanId);
+            return activities.All(activity => IsDateWithinRange(activity.ActivityDate, startDate, endDate));
+        }
+
         private static bool IsValidTripPlan(Guid ownerUserId, string title, DateTime startDate, DateTime endDate, decimal plannedBudget)
         {
             return ownerUserId != Guid.Empty
                 && !string.IsNullOrWhiteSpace(title)
-                && endDate.Date >= startDate.Date
+                && IsValidDateRange(startDate, endDate)
                 && plannedBudget >= 0;
         }
 
-        private static bool IsValidDestination(string name, DateTime arrivalDate, DateTime departureDate)
+        private static bool IsValidDestination(string name, DateTime arrivalDate, DateTime departureDate, TripPlanModel tripPlan)
         {
             return !string.IsNullOrWhiteSpace(name)
-                && departureDate.Date >= arrivalDate.Date;
+                && IsDateRangeWithinTrip(arrivalDate, departureDate, tripPlan);
         }
 
-        private static bool IsValidActivity(string title, decimal estimatedCost, ActivityStatus status)
+        private static bool IsValidActivity(string title, DateTime activityDate, decimal estimatedCost, ActivityStatus status, TripPlanModel tripPlan)
         {
             return !string.IsNullOrWhiteSpace(title)
+                && IsDateWithinTrip(activityDate, tripPlan)
                 && estimatedCost >= 0
                 && Enum.IsDefined(typeof(ActivityStatus), status);
+        }
+
+        private static bool IsValidDateRange(DateTime startDate, DateTime endDate)
+        {
+            return IsRequiredDate(startDate)
+                && IsRequiredDate(endDate)
+                && endDate.Date >= startDate.Date;
+        }
+
+        private static bool IsDateRangeWithinTrip(DateTime startDate, DateTime endDate, TripPlanModel tripPlan)
+        {
+            return IsDateRangeWithinRange(startDate, endDate, tripPlan.StartDate, tripPlan.EndDate);
+        }
+
+        private static bool IsDateRangeWithinRange(DateTime startDate, DateTime endDate, DateTime rangeStart, DateTime rangeEnd)
+        {
+            return IsValidDateRange(startDate, endDate)
+                && IsValidDateRange(rangeStart, rangeEnd)
+                && startDate.Date >= rangeStart.Date
+                && endDate.Date <= rangeEnd.Date;
+        }
+
+        private static bool IsDateWithinTrip(DateTime date, TripPlanModel tripPlan)
+        {
+            return IsDateWithinRange(date, tripPlan.StartDate, tripPlan.EndDate);
+        }
+
+        private static bool IsDateWithinRange(DateTime date, DateTime rangeStart, DateTime rangeEnd)
+        {
+            return IsRequiredDate(date)
+                && IsValidDateRange(rangeStart, rangeEnd)
+                && date.Date >= rangeStart.Date
+                && date.Date <= rangeEnd.Date;
+        }
+
+        private static bool IsRequiredDate(DateTime date)
+        {
+            return date.Date != default;
         }
 
         private static bool IsValidChecklistTitle(string title)

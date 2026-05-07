@@ -63,7 +63,8 @@ Najbitniji frontend delovi:
 ## Implementirane funkcionalnosti
 
 - Auth: registracija, login i JWT autentifikacija.
-- Uloge: `User` i `Admin`.
+- Uloge: `User` i `Admin`, uz bootstrap admin nalog za cistu instalaciju.
+- Admin: pregled korisnika, promena uloge i brisanje korisnika/planova.
 - Planovi putovanja: kreiranje, pregled, izmena i brisanje.
 - Destinacije: dodavanje, pregled, izmena i brisanje.
 - Aktivnosti: dodavanje, pregled, izmena i brisanje.
@@ -71,7 +72,7 @@ Najbitniji frontend delovi:
 - Checklist: dodavanje, cekiranje, izmena i brisanje stavki.
 - Beleske: dodavanje, pregled, izmena i brisanje beleski za vlasnika plana.
 - Deljenje plana: token/link, VIEW i EDIT pristup, opoziv tokena.
-- Frontend stranice: login, register, moji planovi i javni shared prikaz.
+- Frontend stranice: login, register, moji planovi, admin, PDF/print izvestaj i javni shared prikaz.
 - Osnovne validacije na backendu i frontend formama.
 - Ownership provera: korisnik vidi i menja samo svoje planove i povezane podatke.
 
@@ -79,8 +80,6 @@ Najbitniji frontend delovi:
 
 - LDAP/SSO nije radjen.
 - Prikaz rute na mapi nije radjen.
-- Calendar view nije uradjen kao pravi kalendarski prikaz. Aktivnosti se prikazuju kao lista/grupisanje po datumu.
-- Admin funkcionalnosti su minimalne. Backend ima endpoint za listu korisnika za Admin rolu, ali nema posebnog kompletnog admin panela.
 
 ## Podesavanje baze
 
@@ -218,12 +217,20 @@ npm run build
 
 ## Test nalozi
 
-U migracijama postoje seed vrednosti za role `User` i `Admin`, ali ne postoje seed korisnici. Korisnik se kreira kroz Register formu. Registracija novom korisniku dodeljuje `User` rolu.
+Migracije seed-uju role `User` i `Admin`. Ako u bazi ne postoji nijedan admin, kreira se bootstrap admin:
+
+```text
+login: admin
+email: admin@travelplanner.local
+lozinka: admin123
+```
+
+Registracija novom korisniku dodeljuje `User` rolu.
 
 ## Napomene
 
 - Backend URL mora biti upisan u `VITE_API_BASE_URL`.
-- HTTP pozivi su organizovani u `frontend/src/api` servisima.
+- HTTP pozivi su organizovani u `frontend/src/api` servisima i iz komponenti se koriste preko konteksta/injektovanih servisnih funkcija.
 - Lozinke se cuvaju hash-ovane.
 - JWT mora imati validan secret.
 - Deljeni VIEW link sluzi za pregled plana.

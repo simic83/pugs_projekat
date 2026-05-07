@@ -64,6 +64,56 @@ BEGIN
 END;
 GO
 
+DECLARE @BootstrapAdminEmail NVARCHAR(320) = N'admin@travelplanner.local';
+DECLARE @BootstrapAdminUserId UNIQUEIDENTIFIER;
+DECLARE @AdminRoleId INT;
+
+SELECT @AdminRoleId = RoleId
+FROM dbo.Roles
+WHERE Name = N'Admin';
+
+IF @AdminRoleId IS NOT NULL
+    AND NOT EXISTS
+    (
+        SELECT 1
+        FROM dbo.UserRoles userRole
+        INNER JOIN dbo.Roles roleRecord ON roleRecord.RoleId = userRole.RoleId
+        WHERE roleRecord.Name = N'Admin'
+    )
+BEGIN
+    SELECT @BootstrapAdminUserId = UserId
+    FROM dbo.Users
+    WHERE Email = @BootstrapAdminEmail;
+
+    IF @BootstrapAdminUserId IS NULL
+    BEGIN
+        SET @BootstrapAdminUserId = CAST(N'11111111-1111-1111-1111-111111111111' AS UNIQUEIDENTIFIER);
+
+        INSERT INTO dbo.Users (UserId, Name, Email, PasswordHash, CreatedAtUtc)
+        VALUES
+        (
+            @BootstrapAdminUserId,
+            N'admin',
+            @BootstrapAdminEmail,
+            N'PBKDF2-SHA256$100000$QWRtaW5TZWVkU2FsdDEyMw==$wC8VScJnqu3wE4lxE2vuRCKf5+N12yg4803P6pamDi4=',
+            SYSUTCDATETIME()
+        );
+    END;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM dbo.UserRoles
+        WHERE UserId = @BootstrapAdminUserId
+            AND RoleId = @AdminRoleId
+    )
+    BEGIN
+        INSERT INTO dbo.UserRoles (UserId, RoleId)
+        VALUES (@BootstrapAdminUserId, @AdminRoleId);
+    END;
+END;
+GO
+
 -- 2. Trip planning osnovne tabele
 IF OBJECT_ID(N'dbo.TripPlans', N'U') IS NULL
 BEGIN
@@ -83,6 +133,8 @@ BEGIN
         CONSTRAINT FK_TripPlans_Users FOREIGN KEY (OwnerUserId)
             REFERENCES dbo.Users (UserId)
             ON DELETE CASCADE,
+        CONSTRAINT CK_TripPlans_DatesRequired CHECK
+            (StartDate > CONVERT(date, '00010101', 112) AND EndDate > CONVERT(date, '00010101', 112)),
         CONSTRAINT CK_TripPlans_DateRange CHECK (EndDate >= StartDate),
         CONSTRAINT CK_TripPlans_PlannedBudget CHECK (PlannedBudget >= 0)
     );
@@ -145,6 +197,8 @@ BEGIN
         CONSTRAINT FK_Destinations_TripPlans FOREIGN KEY (TripPlanId)
             REFERENCES dbo.TripPlans (Id)
             ON DELETE CASCADE,
+        CONSTRAINT CK_Destinations_DatesRequired CHECK
+            (ArrivalDate > CONVERT(date, '00010101', 112) AND DepartureDate > CONVERT(date, '00010101', 112)),
         CONSTRAINT CK_Destinations_DateRange CHECK (DepartureDate >= ArrivalDate)
     );
 END;
@@ -169,8 +223,67 @@ BEGIN
         CONSTRAINT FK_Activities_TripPlans FOREIGN KEY (TripPlanId)
             REFERENCES dbo.TripPlans (Id)
             ON DELETE CASCADE,
+        CONSTRAINT CK_Activities_DateRequired CHECK (ActivityDate > CONVERT(date, '00010101', 112)),
         CONSTRAINT CK_Activities_EstimatedCost CHECK (EstimatedCost >= 0)
     );
+END;
+GO
+
+IF OBJECT_ID(N'dbo.TripPlans', N'U') IS NOT NULL
+    AND OBJECT_ID(N'dbo.CK_TripPlans_DatesRequired', N'C') IS NULL
+BEGIN
+    IF EXISTS
+    (
+        SELECT 1
+        FROM dbo.TripPlans
+        WHERE StartDate <= CONVERT(date, '00010101', 112)
+            OR EndDate <= CONVERT(date, '00010101', 112)
+    )
+    BEGIN
+        THROW 50006, 'Cannot add CK_TripPlans_DatesRequired because trip plans with default dates exist.', 1;
+    END;
+
+    ALTER TABLE dbo.TripPlans WITH CHECK
+    ADD CONSTRAINT CK_TripPlans_DatesRequired CHECK
+        (StartDate > CONVERT(date, '00010101', 112) AND EndDate > CONVERT(date, '00010101', 112));
+END;
+GO
+
+IF OBJECT_ID(N'dbo.Destinations', N'U') IS NOT NULL
+    AND OBJECT_ID(N'dbo.CK_Destinations_DatesRequired', N'C') IS NULL
+BEGIN
+    IF EXISTS
+    (
+        SELECT 1
+        FROM dbo.Destinations
+        WHERE ArrivalDate <= CONVERT(date, '00010101', 112)
+            OR DepartureDate <= CONVERT(date, '00010101', 112)
+    )
+    BEGIN
+        THROW 50007, 'Cannot add CK_Destinations_DatesRequired because destinations with default dates exist.', 1;
+    END;
+
+    ALTER TABLE dbo.Destinations WITH CHECK
+    ADD CONSTRAINT CK_Destinations_DatesRequired CHECK
+        (ArrivalDate > CONVERT(date, '00010101', 112) AND DepartureDate > CONVERT(date, '00010101', 112));
+END;
+GO
+
+IF OBJECT_ID(N'dbo.Activities', N'U') IS NOT NULL
+    AND OBJECT_ID(N'dbo.CK_Activities_DateRequired', N'C') IS NULL
+BEGIN
+    IF EXISTS
+    (
+        SELECT 1
+        FROM dbo.Activities
+        WHERE ActivityDate <= CONVERT(date, '00010101', 112)
+    )
+    BEGIN
+        THROW 50008, 'Cannot add CK_Activities_DateRequired because activities with default dates exist.', 1;
+    END;
+
+    ALTER TABLE dbo.Activities WITH CHECK
+    ADD CONSTRAINT CK_Activities_DateRequired CHECK (ActivityDate > CONVERT(date, '00010101', 112));
 END;
 GO
 

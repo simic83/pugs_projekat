@@ -6,6 +6,7 @@ namespace IdentityService.Validation;
 
 internal static class LoginRequestValidator
 {
+    private const string BootstrapAdminAlias = "admin";
     private static readonly EmailAddressAttribute EmailValidator = new();
 
     public static List<ValidationErrorDto> Validate(LoginRequestDto request)
@@ -16,7 +17,7 @@ internal static class LoginRequestValidator
         {
             errors.Add(new ValidationErrorDto { Field = nameof(request.Email), Message = "Email is required." });
         }
-        else if (!EmailValidator.IsValid(request.Email))
+        else if (!IsBootstrapAdminAlias(request.Email) && !EmailValidator.IsValid(request.Email))
         {
             errors.Add(new ValidationErrorDto { Field = nameof(request.Email), Message = "Email must be valid." });
         }
@@ -27,5 +28,10 @@ internal static class LoginRequestValidator
         }
 
         return errors;
+    }
+
+    private static bool IsBootstrapAdminAlias(string value)
+    {
+        return string.Equals(value.Trim(), BootstrapAdminAlias, StringComparison.OrdinalIgnoreCase);
     }
 }

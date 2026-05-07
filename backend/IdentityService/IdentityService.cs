@@ -18,6 +18,8 @@ namespace IdentityService
 {
     internal sealed class IdentityService : StatelessService, IIdentityService
     {
+        private const string BootstrapAdminAlias = "admin";
+        private const string BootstrapAdminEmail = "admin@travelplanner.local";
         private readonly IUserRepository userRepository;
         private readonly PasswordHasher passwordHasher;
         private readonly JwtTokenService jwtTokenService;
@@ -86,7 +88,7 @@ namespace IdentityService
             {
                 jwtTokenService.EnsureConfigured();
 
-                var user = await userRepository.FindByEmailAsync(request.Email.Trim().ToLowerInvariant());
+                var user = await userRepository.FindByEmailAsync(NormalizeLoginIdentifier(request.Email));
                 if (user is null || !passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
                 {
                     return Failure("Invalid email or password.");
@@ -262,6 +264,14 @@ namespace IdentityService
             }
 
             return null;
+        }
+
+        private static string NormalizeLoginIdentifier(string value)
+        {
+            var trimmedValue = value.Trim();
+            return string.Equals(trimmedValue, BootstrapAdminAlias, StringComparison.OrdinalIgnoreCase)
+                ? BootstrapAdminEmail
+                : trimmedValue.ToLowerInvariant();
         }
 
         private static OperationResultDto ResultSuccess(string message)

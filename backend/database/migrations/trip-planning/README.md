@@ -7,3 +7,4 @@ Trip planning migrations:
 3. `003_create_notes.sql` - notes / beleske za plan putovanja.
 4. `004_create_reminders.sql` - podsjetnici za plan putovanja.
 5. `005_add_trip_plan_owner_cascade.sql` - cascade delete veza izmedju korisnika i njegovih planova.
+6. `006_add_required_date_checks.sql` - CHECK constrainti koji odbijaju default datume plana, destinacija i aktivnosti.
