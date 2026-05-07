@@ -1,104 +1,250 @@
-# Travel Planner
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0EA5E9,50:22C55E,100:F59E0B&height=190&section=header&text=Travel%20Planner&fontColor=FFFFFF&fontSize=48&fontAlignY=36&desc=Web%20aplikacija%20za%20planiranje%20putovanja&descAlignY=58&animation=fadeIn" alt="Travel Planner animated header" />
+</p>
 
-## Opis projekta
+<p align="center">
+  <img src="https://readme-typing-svg.demolab.com?font=Inter&weight=600&size=20&duration=2800&pause=900&color=0EA5E9&center=true&vCenter=true&width=820&lines=Planovi+putovanja+na+jednom+mjestu;Destinacije%2C+aktivnosti%2C+troskovi+i+budzet;Checklist%2C+biljeske%2C+podsjetnici+i+QR+dijeljenje" alt="Animated Travel Planner description" />
+</p>
 
-Travel Planner je web aplikacija za planiranje putovanja. Projekat je radjen kao studentski PUGS projekat, uz Microsoft Service Fabric backend i React frontend.
+<p align="center">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=111827" alt="React 19" />
+  <img src="https://img.shields.io/badge/Vite-7-646CFF?style=for-the-badge&logo=vite&logoColor=FFFFFF" alt="Vite 7" />
+  <img src="https://img.shields.io/badge/.NET-8-512BD4?style=for-the-badge&logo=dotnet&logoColor=FFFFFF" alt=".NET 8" />
+  <img src="https://img.shields.io/badge/Service%20Fabric-Microservices-0EA5E9?style=for-the-badge" alt="Microsoft Service Fabric" />
+  <img src="https://img.shields.io/badge/SQL%20Server-TravelPlannerDb-CC2927?style=for-the-badge&logo=microsoftsqlserver&logoColor=FFFFFF" alt="SQL Server" />
+  <img src="https://img.shields.io/badge/JWT-Secure%20Auth-111827?style=for-the-badge&logo=jsonwebtokens&logoColor=FFFFFF" alt="JWT authentication" />
+</p>
 
-Aplikacija omogucava:
+<p align="center">
+  <a href="#pregled">Pregled</a> |
+  <a href="#funkcionalnosti">Funkcionalnosti</a> |
+  <a href="#arhitektura-sistema">Arhitektura</a> |
+  <a href="#pokretanje-projekta">Pokretanje</a> |
+  <a href="#sql-migracije">SQL migracije</a> |
+  <a href="#status-specifikacije">Status specifikacije</a>
+</p>
 
-- registraciju i login korisnika,
-- kreiranje planova putovanja,
-- upravljanje destinacijama,
-- upravljanje aktivnostima,
-- vodjenje troskova i budzeta,
+---
+
+## Pregled
+
+**Travel Planner** je web aplikacija za planiranje putovanja razvijena za predmet **Primena veb programiranja u infrastrukturnim sistemima**.
+
+Aplikacija pomaze korisniku da na jednom mjestu organizuje:
+
+- osnovne podatke o putovanju,
+- destinacije i datume boravka,
+- dnevne aktivnosti kroz pregled i calendar view,
+- troskove, kategorije i preostali budzet,
 - checklist / packing listu,
-- deljenje plana preko linka/tokena,
-- VIEW i EDIT pristup deljenom planu.
+- biljeske i podsjetnike,
+- dijeljenje plana putem linka i QR koda.
 
-## Tehnologije
+Centralni entitet sistema je **plan putovanja**. Oko njega su organizovani destinacije, aktivnosti, troskovi, budzet, biljeske, podsjetnici, checklist stavke i share tokeni.
 
-- React frontend
-- ASP.NET Core Web API u `ApiGatewayService`
-- Microsoft Service Fabric
-- Service Fabric Remoting
-- Microsoft SQL Server
-- Microsoft.Data.SqlClient
-- JWT autentifikacija
+---
 
-## Struktura projekta
+## Funkcionalnosti
 
-- `backend/` - Service Fabric solution, backend servisi, remoting contracts i SQL migracije.
-- `frontend/` - React aplikacija sa stranicama, API servisima, kontekstima, modelima i stilovima.
-- `docs/` - dokumentacija za predaju projekta.
-
-Najbitniji backend delovi:
-
-- `backend/ApiGatewayService` - HTTP ulaz za frontend i ASP.NET Core kontroleri.
-- `backend/IdentityService` - registracija, login, JWT i korisnici.
-- `backend/TripPlanningService` - planovi putovanja, destinacije, aktivnosti i checklist.
-- `backend/BudgetService` - troskovi i budzet.
-- `backend/SharingService` - share tokeni i VIEW/EDIT pristup.
-- `backend/Contracts` - DTO klase i Service Fabric Remoting interfejsi.
-- `backend/database/migrations` - SQL skripte za kreiranje tabela.
-- `backend/TravelPlanner` - Service Fabric application project.
-
-Najbitniji frontend delovi:
-
-- `frontend/src/api` - HTTP pozivi ka backend API-ju.
-- `frontend/src/pages` - stranice za login, registraciju, planove i deljeni plan.
-- `frontend/src/context` - React context za autentifikaciju i osnovni app context.
-- `frontend/src/styles` - globalni stilovi i bela/plava tema.
-- `frontend/src/models` - frontend konstante i pomocni modeli.
-
-## Mikroservisi
-
-| Servis | Uloga |
+| Modul | Sta sistem podrzava |
 | --- | --- |
-| `ApiGatewayService` | HTTP ulaz za frontend. Validira JWT i poziva unutrasnje servise preko Service Fabric Remoting-a. |
-| `IdentityService` | Registracija, login, hashovanje lozinki, JWT tokeni, korisnici i uloge. |
-| `TripPlanningService` | Planovi putovanja, destinacije, aktivnosti i checklist stavke. |
-| `BudgetService` | Troskovi putovanja i obracun ukupnog/preostalog budzeta. |
-| `SharingService` | Kreiranje, pregled i opoziv share tokena, kao i VIEW/EDIT pristup deljenom planu. |
+| **Autentifikacija** | Registracija, logovanje, JWT tokeni, hashovane lozinke i role `User` / `Admin`. |
+| **Planovi putovanja** | Kreiranje, pregled, izmjena i brisanje planova sa nazivom, opisom, datumima, budzetom i napomenama. |
+| **Destinacije** | Dodavanje vise destinacija po putovanju, sa lokacijom, datumima dolaska/odlaska i opisom. |
+| **Aktivnosti** | Organizacija po danima, vrijeme, lokacija, status, opis i procijenjeni trosak. |
+| **Kalendar** | Prikaz aktivnosti kroz FullCalendar pregled radi lakse navigacije po danima. |
+| **Troskovi i budzet** | Kategorije troskova, automatski zbir troskova i prikaz preostalog budzeta. |
+| **Checklist** | Packing lista i obaveze prije puta, uz oznacavanje zavrsenih stavki. |
+| **Biljeske i podsjetnici** | Dodatne informacije i podsjetnici vezani za konkretan plan putovanja. |
+| **Dijeljenje** | Share link i QR kod sa nivoima pristupa `VIEW` i `EDIT`. |
+| **Admin panel** | Pregled korisnika, upravljanje ulogama i administracija sadrzaja sistema. |
+| **Izvjestaj** | Print/PDF-friendly pregled plana putovanja kroz browser print funkcionalnost. |
 
-## Implementirane funkcionalnosti
+---
 
-- Auth: registracija, login i JWT autentifikacija.
-- Uloge: `User` i `Admin`, uz bootstrap admin nalog za cistu instalaciju.
-- Admin: pregled korisnika, promena uloge i brisanje korisnika/planova.
-- Planovi putovanja: kreiranje, pregled, izmena i brisanje.
-- Destinacije: dodavanje, pregled, izmena i brisanje.
-- Aktivnosti: dodavanje, pregled, izmena i brisanje.
-- Troskovi i budzet: troskovi po planu i summary budzeta.
-- Checklist: dodavanje, cekiranje, izmena i brisanje stavki.
-- Beleske: dodavanje, pregled, izmena i brisanje beleski za vlasnika plana.
-- Deljenje plana: token/link, VIEW i EDIT pristup, opoziv tokena.
-- Frontend stranice: login, register, moji planovi, admin, PDF/print izvestaj i javni shared prikaz.
-- Osnovne validacije na backendu i frontend formama.
-- Ownership provera: korisnik vidi i menja samo svoje planove i povezane podatke.
+## Tehnoloski Stack
 
-## Funkcionalnosti koje nisu radjene
+| Sloj | Tehnologije |
+| --- | --- |
+| **Frontend** | React 19, Vite 7, React Router, Context API, FullCalendar, qrcode.react, lucide-react |
+| **Backend** | .NET 8, ASP.NET Core Web API, Microsoft Service Fabric, Service Fabric Remoting |
+| **Baza** | Microsoft SQL Server, SQL migracije |
+| **Sigurnost** | JWT autentifikacija, role-based access, PBKDF2 password hashing |
+| **Integracija** | REST API preko `ApiGatewayService`, interna komunikacija preko Service Fabric Remoting-a |
 
-- LDAP/SSO nije radjen.
-- Prikaz rute na mapi nije radjen.
+---
 
-## Podesavanje baze
+## Arhitektura Sistema
 
-SQL migracije se nalaze u:
+```mermaid
+flowchart LR
+    Browser["React + Vite frontend<br/>Context API + API servisi"]
+    Gateway["ApiGatewayService<br/>ASP.NET Core REST API<br/>Stateless"]
+    Identity["IdentityService<br/>korisnici, login, JWT, role<br/>Stateless"]
+    Trip["TripPlanningService<br/>planovi, destinacije, aktivnosti,<br/>checklist, biljeske, podsjetnici<br/>Stateful"]
+    Budget["BudgetService<br/>troskovi i budzet summary<br/>Stateful"]
+    Sharing["SharingService<br/>share tokeni, VIEW/EDIT pristup<br/>Stateful"]
+    Db[("Microsoft SQL Server<br/>TravelPlannerDb")]
 
-- `backend/database/migrations/identity`
-- `backend/database/migrations/trip-planning`
-- `backend/database/migrations/budget`
-- `backend/database/migrations/sharing`
+    Browser -->|"REST + Bearer JWT"| Gateway
+    Gateway -->|"Service Fabric Remoting"| Identity
+    Gateway -->|"Service Fabric Remoting"| Trip
+    Gateway -->|"Service Fabric Remoting"| Budget
+    Gateway -->|"Service Fabric Remoting"| Sharing
+    Identity --> Db
+    Trip --> Db
+    Budget --> Db
+    Sharing --> Db
 
-Za lokalni development moze se koristiti objedinjena skripta:
+    classDef frontend fill:#0EA5E9,stroke:#0369A1,color:#FFFFFF;
+    classDef gateway fill:#111827,stroke:#374151,color:#FFFFFF;
+    classDef stateless fill:#8B5CF6,stroke:#6D28D9,color:#FFFFFF;
+    classDef stateful fill:#22C55E,stroke:#15803D,color:#052E16;
+    classDef database fill:#F59E0B,stroke:#B45309,color:#111827;
 
-- `backend/database/01_run_all_migrations.sql`
+    class Browser frontend;
+    class Gateway gateway;
+    class Identity stateless;
+    class Trip,Budget,Sharing stateful;
+    class Db database;
+```
 
-Ona kreira bazu `TravelPlannerDb` ako ne postoji i pokrece sve migracije redom. Ako treba samo kreirati bazu, pokrenuti:
+### Mikroservisi
 
-- `backend/database/00_create_database.sql`
+| Servis | Tip | Odgovornost |
+| --- | --- | --- |
+| `ApiGatewayService` | Stateless | Jedini HTTP ulaz za frontend, REST kontroleri, CORS, JWT validacija i pozivanje internih servisa. |
+| `IdentityService` | Stateless | Registracija, login, hashovanje lozinki, JWT izdavanje, korisnici i role. |
+| `TripPlanningService` | Stateful | Planovi putovanja, destinacije, aktivnosti, checklist, biljeske i podsjetnici. |
+| `BudgetService` | Stateful | Evidencija troskova i automatski obracun ukupnog/preostalog budzeta. |
+| `SharingService` | Stateful | Kreiranje i validacija share tokena, QR/link dijeljenje, `VIEW` i `EDIT` pristup. |
 
-Preporuceni redosled pokretanja migracija:
+---
+
+## Struktura Projekta
+
+```text
+pugs_projekat/
+|-- backend/
+|   |-- ApiGatewayService/       # REST API za frontend
+|   |-- IdentityService/         # autentifikacija, korisnici, role
+|   |-- TripPlanningService/     # planovi, destinacije, aktivnosti, checklist, notes, reminders
+|   |-- BudgetService/           # troskovi i budzet
+|   |-- SharingService/          # share tokeni i javni/shared pristup
+|   |-- Contracts/               # DTO modeli i Service Fabric Remoting interfejsi
+|   |-- database/                # SQL skripte i migracije
+|   |-- TravelPlanner/           # Service Fabric application project
+|   `-- TravelPlanner.sln
+|
+|-- frontend/
+|   |-- src/
+|   |   |-- api/                 # HTTP servisi prema backend-u
+|   |   |-- components/          # reusable React komponente
+|   |   |-- context/             # AuthContext i AppContext
+|   |   |-- models/              # frontend modeli i konstante
+|   |   |-- pages/               # rute/stranice aplikacije
+|   |   |-- routes/              # React Router konfiguracija
+|   |   |-- styles/              # globalni stilovi
+|   |   `-- utils/               # validacija i token storage
+|   |-- .env                     # VITE_API_BASE_URL
+|   |-- package.json
+|   `-- index.html
+|
+`-- README.md
+```
+
+---
+
+## Frontend Organizacija
+
+Frontend je organizovan kao moderna React aplikacija:
+
+- stranice su u `frontend/src/pages`,
+- reusable UI cjeline su u `frontend/src/components`,
+- globalno stanje i tok autentifikacije su u `frontend/src/context`,
+- HTTP pozivi su izdvojeni u `frontend/src/api`,
+- frontend modeli i konstante su u `frontend/src/models`,
+- URL backend-a se cita iz `.env` fajla kroz `VITE_API_BASE_URL`.
+
+HTTP pozivi se ne rade direktno iz komponenti. Komponente koriste servisne funkcije i context sloj, sto olaksava testiranje, odrzavanje i zamjenu backend URL-a.
+
+### Frontend `.env`
+
+```env
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+Ako `ApiGatewayService` dobije drugi HTTP endpoint u lokalnom Service Fabric cluster-u, ovu vrijednost treba uskladiti sa stvarnim URL-om gateway servisa.
+
+---
+
+## Backend Organizacija
+
+Backend je implementiran kroz Microsoft Service Fabric aplikaciju sa jasno odvojenim logickim servisima.
+
+Vanjski HTTP zahtjevi idu kroz:
+
+```text
+frontend -> ApiGatewayService -> Service Fabric Remoting -> interni servisi -> SQL Server
+```
+
+DTO modeli su smjesteni u `backend/Contracts`, dok svaki servis ima svoje modele baze u `Models` folderima. Mapiranje izmedju DTO i DB modela radi se u backend sloju, tako da ugovori API-ja i perzistentni modeli ostaju odvojeni.
+
+---
+
+## REST Resursi
+
+Glavni REST endpoint-i prate konvenciju imenovanja resursa:
+
+| Resurs | Primjer |
+| --- | --- |
+| Sesije | `POST /api/sessions` |
+| Korisnici | `POST /api/users`, `GET /api/users/me` |
+| Planovi putovanja | `GET /api/trip-plans`, `POST /api/trip-plans` |
+| Pojedinacni plan | `GET /api/trip-plans/{tripPlanId}` |
+| Destinacije | `/api/trip-plans/{tripPlanId}/destinations` |
+| Aktivnosti | `/api/trip-plans/{tripPlanId}/activities` |
+| Troskovi | `/api/trip-plans/{tripPlanId}/expenses` |
+| Budzet | `GET /api/trip-plans/{tripPlanId}/budget` |
+| Checklist | `/api/trip-plans/{tripPlanId}/checklist-items` |
+| Biljeske | `/api/trip-plans/{tripPlanId}/notes` |
+| Podsjetnici | `/api/trip-plans/{tripPlanId}/reminders` |
+| Share tokeni | `/api/trip-plans/{tripPlanId}/shares` |
+| Shared plan | `/api/shares/{token}/trip-plan` |
+| Admin | `/api/admin/trip-plans` |
+
+---
+
+## Sigurnost I Validacija
+
+Sistem vodi racuna o osnovnim sigurnosnim pravilima:
+
+- lozinke se cuvaju kao hash, uz PBKDF2 i SHA-256,
+- JWT tokeni imaju potpis, issuer, audience i istek,
+- `ApiGatewayService` validira token prije pristupa zasticenim rutama,
+- korisnik moze upravljati samo svojim planovima,
+- admin ima dodatna ovlascenja za korisnike i sadrzaj,
+- share token se validira na svakom zahtjevu,
+- `VIEW` token omogucava samo pregled,
+- `EDIT` token dozvoljava izmjene nad podrzanim entitetima,
+- datumi i budzet imaju backend i SQL validacije,
+- brisanje plana uklanja povezane entitete preko cascade veza.
+
+---
+
+## SQL Migracije
+
+Migracije se nalaze u `backend/database/migrations`.
+
+Za lokalni development najjednostavnije je pokrenuti objedinjenu skriptu:
+
+```text
+backend/database/01_run_all_migrations.sql
+```
+
+Skripta kreira bazu `TravelPlannerDb`, tabele, role i bootstrap admin nalog ako u sistemu ne postoji nijedan admin.
+
+Ako se migracije pokrecu rucno, preporuceni redosled je:
 
 1. `backend/database/migrations/identity/001_create_identity_schema.sql`
 2. `backend/database/migrations/trip-planning/001_create_trip_planning_schema.sql`
@@ -106,87 +252,77 @@ Preporuceni redosled pokretanja migracija:
 4. `backend/database/migrations/trip-planning/003_create_notes.sql`
 5. `backend/database/migrations/trip-planning/004_create_reminders.sql`
 6. `backend/database/migrations/trip-planning/005_add_trip_plan_owner_cascade.sql`
-7. `backend/database/migrations/budget/001_create_budget_schema.sql`
-8. `backend/database/migrations/sharing/001_create_share_tokens.sql`
+7. `backend/database/migrations/trip-planning/006_add_required_date_checks.sql`
+8. `backend/database/migrations/budget/001_create_budget_schema.sql`
+9. `backend/database/migrations/sharing/001_create_share_tokens.sql`
 
-Migracije se pokrecu nad Microsoft SQL Server bazom. Budget i sharing tabele imaju veze ka `TripPlans`, zato se trip-planning migracije pokrecu pre njih.
-
-## Podesavanje konfiguracije
-
-Za lokalno pokretanje treba podesiti:
-
-- connection string,
-- JWT Secret,
-- JWT Issuer,
-- JWT Audience,
-- JWT expiration.
-
-Service Fabric application manifest je:
-
-- `backend/TravelPlanner/ApplicationPackageRoot/ApplicationManifest.xml`
-
-Service Fabric parameter fajlovi su:
-
-- `backend/TravelPlanner/ApplicationParameters/Local.1Node.xml`
-- `backend/TravelPlanner/ApplicationParameters/Local.5Node.xml`
-- `backend/TravelPlanner/ApplicationParameters/Cloud.xml`
-
-Service `Settings.xml` fajlovi su:
-
-- `backend/IdentityService/PackageRoot/Config/Settings.xml` - `ConnectionStrings/DefaultConnection`, `Jwt/Secret`, `Jwt/Issuer`, `Jwt/Audience`, `Jwt/ExpirationMinutes`.
-- `backend/ApiGatewayService/PackageRoot/Config/Settings.xml` - `Jwt/Secret`, `Jwt/Issuer`, `Jwt/Audience`, `Authentication/AllowDevUserHeaderFallback`.
-- `backend/TripPlanningService/PackageRoot/Config/Settings.xml` - `ConnectionStrings/DefaultConnection`.
-- `backend/BudgetService/PackageRoot/Config/Settings.xml` - `ConnectionStrings/DefaultConnection`.
-- `backend/SharingService/PackageRoot/Config/Settings.xml` - `ConnectionStrings/DefaultConnection`.
-
-`ApplicationManifest.xml` mapira ove parametre u `Settings.xml`:
-
-- `Identity_DefaultConnection`
-- `Identity_JwtSecret`
-- `Identity_JwtIssuer`
-- `Identity_JwtAudience`
-- `Identity_JwtExpirationMinutes`
-- `ApiGateway_JwtSecret`
-- `ApiGateway_JwtIssuer`
-- `ApiGateway_JwtAudience`
-- `ApiGateway_AllowDevUserHeaderFallback`
-- `TripPlanning_DefaultConnection`
-- `Budget_DefaultConnection`
-- `Sharing_DefaultConnection`
-
-Za lokalni rad, `Local.1Node.xml` i `Local.5Node.xml` trenutno koriste isti primer SQL connection string-a za sve module:
+Lokalni connection string koji koriste Service Fabric parametri:
 
 ```text
 Server=localhost;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;
 ```
 
-Ako koristite vise baza, podesite odvojene vrednosti za `Identity_DefaultConnection`, `TripPlanning_DefaultConnection`, `Budget_DefaultConnection` i `Sharing_DefaultConnection`. Ako koristite jednu bazu, isti connection string je dovoljan za sve servise.
+---
 
-JWT vrednosti u `IdentityService` i `ApiGatewayService` moraju biti iste, jer `IdentityService` izdaje token, a `ApiGatewayService` ga validira. Konkretno, uskladiti:
+## Pokretanje Projekta
 
-- `Identity_JwtSecret` i `ApiGateway_JwtSecret`
-- `Identity_JwtIssuer` i `ApiGateway_JwtIssuer`
-- `Identity_JwtAudience` i `ApiGateway_JwtAudience`
+### Preduslovi
 
-JWT Secret mora imati najmanje 32 karaktera/bajta. Pravi secret se ne cuva u repozitorijumu; vrednosti `CHANGE_ME_...` su samo placeholder-i i treba ih zameniti lokalnim development vrednostima pre pokretanja.
+- Windows razvojno okruzenje
+- Visual Studio sa Service Fabric alatima
+- Microsoft Service Fabric SDK i lokalni cluster
+- .NET 8 SDK
+- Microsoft SQL Server i SQL Server Management Studio
+- Node.js i npm
 
-`ApiGateway_AllowDevUserHeaderFallback` je podesen na `false` i treba da ostane `false` za normalan lokalni/proizvodni rad.
+### 1. Baza
 
-## Pokretanje backend-a
+U SQL Server Management Studio otvoriti i pokrenuti:
 
-Studentsko lokalno pokretanje:
+```text
+backend/database/01_run_all_migrations.sql
+```
 
-1. Otvoriti `backend/TravelPlanner.sln` u Visual Studio.
-2. Pokrenuti Visual Studio kao Administrator ako Service Fabric local cluster to zahteva.
-3. Proveriti da je Service Fabric Local Cluster pokrenut.
-4. Pokrenuti SQL migracije iz sekcije "Podesavanje baze".
-5. Podesiti SQL Server connection string u konfiguraciji servisa.
-6. Podesiti JWT secret, issuer, audience i expiration.
-7. Deploy/pokrenuti Service Fabric aplikaciju `TravelPlanner` iz Visual Studio okruzenja.
+Nakon toga baza `TravelPlannerDb` treba da sadrzi sve potrebne seme, tabele, constraint-e i pocetne role.
 
-## Pokretanje frontend-a
+### 2. Backend
 
-U terminalu:
+Otvoriti solution:
+
+```text
+backend/TravelPlanner.sln
+```
+
+U Service Fabric parametrima podesiti:
+
+```text
+backend/TravelPlanner/ApplicationParameters/Local.1Node.xml
+backend/TravelPlanner/ApplicationParameters/Local.5Node.xml
+```
+
+Najbitniji parametri:
+
+```text
+Identity_DefaultConnection
+TripPlanning_DefaultConnection
+Budget_DefaultConnection
+Sharing_DefaultConnection
+Identity_JwtSecret
+ApiGateway_JwtSecret
+Identity_JwtIssuer
+ApiGateway_JwtIssuer
+Identity_JwtAudience
+ApiGateway_JwtAudience
+ApiGateway_CorsAllowedOrigins
+```
+
+JWT vrijednosti za `IdentityService` i `ApiGatewayService` moraju biti iste, jer identity servis izdaje token, a gateway servis ga validira.
+
+`JwtSecret` mora imati najmanje 32 bajta/karaktera.
+
+Zatim pokrenuti/deploy-ovati Service Fabric aplikaciju `TravelPlanner` iz Visual Studio okruzenja.
+
+### 3. Frontend
 
 ```powershell
 cd frontend
@@ -194,28 +330,23 @@ npm install
 npm run dev
 ```
 
-`npm install` je potreban samo ako `node_modules` ne postoji ili zavisnosti nisu instalirane.
+Vite aplikacija se podrazumijevano pokrece na:
 
-Frontend koristi Vite `.env` podesavanje. Primer postoji u:
-
-- `frontend/.env.example`
-
-Potrebno je napraviti lokalni `.env` prema primeru i podesiti:
-
-```env
-VITE_API_BASE_URL=http://localhost:8080
+```text
+http://localhost:5173
 ```
 
-Ako lokalni Service Fabric cluster dodeli drugi port za `ApiGatewayService` endpoint, uskladiti port u `VITE_API_BASE_URL` sa stvarnim ApiGateway HTTP endpoint-om.
-
-Za proveru produkcionog build-a:
+Za provjeru produkcionog build-a:
 
 ```powershell
 cd frontend
 npm run build
+npm run preview
 ```
 
-## Test nalozi
+---
+
+## Test Nalog
 
 Migracije seed-uju role `User` i `Admin`. Ako u bazi ne postoji nijedan admin, kreira se bootstrap admin:
 
@@ -225,15 +356,80 @@ email: admin@travelplanner.local
 lozinka: admin123
 ```
 
-Registracija novom korisniku dodeljuje `User` rolu.
+Za stvarno okruzenje potrebno je promijeniti lozinku i zamijeniti sve `CHANGE_ME_*` konfiguracione vrijednosti.
 
-## Napomene
+---
 
-- Backend URL mora biti upisan u `VITE_API_BASE_URL`.
-- HTTP pozivi su organizovani u `frontend/src/api` servisima i iz komponenti se koriste preko konteksta/injektovanih servisnih funkcija.
-- Lozinke se cuvaju hash-ovane.
-- JWT mora imati validan secret.
-- Deljeni VIEW link sluzi za pregled plana.
-- Deljeni EDIT link omogucava izmenu osnovnog plana, destinacija, aktivnosti, troskova, checklist stavki i beleski.
-- QR kod je dostupan za share linkove.
-- Mapa/ruta i pravi calendar view nisu deo trenutne implementacije.
+## Dijeljenje Plana
+
+Dijeljenje plana podrzava dva nivoa pristupa:
+
+| Pristup | Mogucnosti |
+| --- | --- |
+| `VIEW` | Pregled plana, destinacija, aktivnosti, troskova, checklist stavki, biljeski i podsjetnika. |
+| `EDIT` | Izmjena podrzanih podataka nad dijeljenim planom. |
+
+Frontend generise QR kod za share link preko `qrcode.react`, dok backend validira token i nivo pristupa pri svakom zahtjevu.
+
+---
+
+## Status Specifikacije
+
+| Zahtjev | Status |
+| --- | --- |
+| React frontend | Implementirano |
+| Upravljanje stanjem aplikacije | Implementirano kroz Context API |
+| HTTP pozivi izdvojeni u servise | Implementirano u `frontend/src/api` |
+| URL backend-a u `.env` fajlu | Implementirano kroz `VITE_API_BASE_URL` |
+| Frontend modeli | Implementirano u `frontend/src/models` |
+| Service Fabric mikroservisi | Implementirano |
+| Stateless i stateful servisi | Implementirano |
+| SQL Server perzistencija | Implementirano |
+| SQL migracije | Implementirano |
+| DTO i DB modeli odvojeni | Implementirano |
+| REST imenovanje resursa | Implementirano |
+| Hashovanje lozinki | Implementirano |
+| Validacija potpisa i isteka tokena | Implementirano |
+| Validacija datuma i budzeta | Implementirano |
+| Cascade brisanje povezanih entiteta | Implementirano |
+| QR/share pristup `VIEW` i `EDIT` | Implementirano |
+| README uputstvo za pokretanje | Implementirano |
+| Use Case dijagram | Bice dodat naknadno |
+
+---
+
+## Korisni Fajlovi
+
+| Fajl | Namjena |
+| --- | --- |
+| `backend/TravelPlanner.sln` | Backend solution za Visual Studio |
+| `backend/TravelPlanner/ApplicationPackageRoot/ApplicationManifest.xml` | Glavni Service Fabric manifest |
+| `backend/TravelPlanner/StartupServices.xml` | Definicija stateless/stateful servisa |
+| `backend/database/01_run_all_migrations.sql` | Objedinjena SQL migracija |
+| `backend/database/README.md` | Dodatne napomene za bazu |
+| `frontend/package.json` | Frontend skripte i dependency lista |
+| `frontend/.env` | Backend URL za frontend |
+
+---
+
+## Kratka Komanda Za Frontend
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+## Kratak Redosled Za Cist Start
+
+1. Pokrenuti SQL Server.
+2. Pokrenuti `backend/database/01_run_all_migrations.sql`.
+3. Provjeriti Service Fabric parametre u `Local.1Node.xml` ili `Local.5Node.xml`.
+4. Pokrenuti `backend/TravelPlanner.sln` kroz Visual Studio.
+5. Provjeriti `frontend/.env` i `VITE_API_BASE_URL`.
+6. Pokrenuti frontend sa `npm run dev`.
+7. Otvoriti `http://localhost:5173`.
+
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:F59E0B,50:22C55E,100:0EA5E9&height=110&section=footer" alt="Travel Planner footer wave" />
+</p>

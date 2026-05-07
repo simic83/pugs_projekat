@@ -6,6 +6,7 @@ using TravelPlanner.Contracts.Common;
 using TravelPlanner.Contracts.Destinations;
 using TravelPlanner.Contracts.Sharing;
 using TravelPlanner.Contracts.Notes;
+using TravelPlanner.Contracts.Reminders;
 using TravelPlanner.Contracts.Trips;
 
 namespace TravelPlanner.Contracts.Interfaces;
@@ -53,4 +54,10 @@ public interface ISharingService : IService
     Task<NoteDto?> UpdateSharedNoteAsync(string token, Guid noteId, UpdateNoteRequestDto request);
 
     Task<OperationResultDto> DeleteSharedNoteAsync(string token, Guid noteId);
+
+    Task<ReminderDto?> CreateSharedReminderAsync(string token, CreateReminderRequestDto request);
+
+    Task<ReminderDto?> UpdateSharedReminderAsync(string token, Guid reminderId, UpdateReminderRequestDto request);
+
+    Task<OperationResultDto> DeleteSharedReminderAsync(string token, Guid reminderId);
 }

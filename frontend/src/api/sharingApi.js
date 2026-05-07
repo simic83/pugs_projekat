@@ -146,4 +146,27 @@ export const sharingApi = {
       skipAuth: true,
     });
   },
+
+  createSharedReminder(token, request) {
+    return apiRequest(`/api/shares/${token}/reminders`, {
+      method: "POST",
+      body: request,
+      skipAuth: true,
+    });
+  },
+
+  updateSharedReminder(token, reminderId, request) {
+    return apiRequest(`/api/shares/${token}/reminders/${reminderId}`, {
+      method: "PUT",
+      body: request,
+      skipAuth: true,
+    });
+  },
+
+  deleteSharedReminder(token, reminderId) {
+    return apiRequest(`/api/shares/${token}/reminders/${reminderId}`, {
+      method: "DELETE",
+      skipAuth: true,
+    });
+  },
 };

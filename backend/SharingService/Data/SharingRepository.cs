@@ -535,6 +535,23 @@ internal sealed class SharingRepository : ISharingRepository
         return await command.ExecuteNonQueryAsync() > 0;
     }
 
+    public async Task<ReminderModel> CreateReminderAsync(ReminderModel reminder)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(
+            """
+            INSERT INTO dbo.Reminders
+                (Id, TripPlanId, Title, Description, ReminderAt, IsCompleted, CreatedAt, UpdatedAt)
+            VALUES
+                (@Id, @TripPlanId, @Title, @Description, @ReminderAt, @IsCompleted, @CreatedAt, @UpdatedAt);
+            """,
+            connection);
+
+        AddReminderParameters(command, reminder);
+        await command.ExecuteNonQueryAsync();
+        return reminder;
+    }
+
     public async Task<List<ReminderModel>> GetRemindersForTripPlanAsync(Guid tripPlanId)
     {
         await using var connection = await CreateOpenConnectionAsync();
@@ -552,6 +569,50 @@ internal sealed class SharingRepository : ISharingRepository
         }
 
         return reminders;
+    }
+
+    public async Task<ReminderModel?> GetReminderByIdForTripPlanAsync(Guid tripPlanId, Guid reminderId)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(
+            ReminderSelectSql + " WHERE Id = @Id AND TripPlanId = @TripPlanId;",
+            connection);
+        command.Parameters.AddWithValue("@Id", reminderId);
+        command.Parameters.AddWithValue("@TripPlanId", tripPlanId);
+
+        await using var reader = await command.ExecuteReaderAsync();
+        return await reader.ReadAsync() ? ReadReminder(reader) : null;
+    }
+
+    public async Task<bool> UpdateReminderAsync(ReminderModel reminder)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(
+            """
+            UPDATE dbo.Reminders
+            SET Title = @Title,
+                Description = @Description,
+                ReminderAt = @ReminderAt,
+                IsCompleted = @IsCompleted,
+                UpdatedAt = @UpdatedAt
+            WHERE Id = @Id AND TripPlanId = @TripPlanId;
+            """,
+            connection);
+
+        AddReminderParameters(command, reminder);
+        return await command.ExecuteNonQueryAsync() > 0;
+    }
+
+    public async Task<bool> DeleteReminderAsync(Guid tripPlanId, Guid reminderId)
+    {
+        await using var connection = await CreateOpenConnectionAsync();
+        await using var command = new SqlCommand(
+            "DELETE FROM dbo.Reminders WHERE Id = @Id AND TripPlanId = @TripPlanId;",
+            connection);
+        command.Parameters.AddWithValue("@Id", reminderId);
+        command.Parameters.AddWithValue("@TripPlanId", tripPlanId);
+
+        return await command.ExecuteNonQueryAsync() > 0;
     }
 
     private async Task<SqlConnection> CreateOpenConnectionAsync()
@@ -651,6 +712,18 @@ internal sealed class SharingRepository : ISharingRepository
         command.Parameters.AddWithValue("@Content", ToDbValue(note.Content));
         command.Parameters.AddWithValue("@CreatedAt", note.CreatedAt);
         command.Parameters.AddWithValue("@UpdatedAt", ToDbValue(note.UpdatedAt));
+    }
+
+    private static void AddReminderParameters(SqlCommand command, ReminderModel reminder)
+    {
+        command.Parameters.AddWithValue("@Id", reminder.Id);
+        command.Parameters.AddWithValue("@TripPlanId", reminder.TripPlanId);
+        command.Parameters.AddWithValue("@Title", reminder.Title);
+        command.Parameters.AddWithValue("@Description", ToDbValue(reminder.Description));
+        command.Parameters.AddWithValue("@ReminderAt", reminder.ReminderAt);
+        command.Parameters.AddWithValue("@IsCompleted", reminder.IsCompleted);
+        command.Parameters.AddWithValue("@CreatedAt", reminder.CreatedAt);
+        command.Parameters.AddWithValue("@UpdatedAt", ToDbValue(reminder.UpdatedAt));
     }
 
     private static ShareTokenModel ReadShareToken(SqlDataReader reader)

@@ -10,6 +10,7 @@
     <Parameter Name="ApiGateway_JwtIssuer" Value="TravelPlanner.Local" />
     <Parameter Name="ApiGateway_JwtAudience" Value="TravelPlanner.Frontend" />
     <Parameter Name="ApiGateway_AllowDevUserHeaderFallback" Value="false" />
+    <Parameter Name="ApiGateway_CorsAllowedOrigins" Value="http://localhost:5173;http://127.0.0.1:5173" />
     <Parameter Name="TripPlanning_DefaultConnection" Value="Server=localhost;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;" />
     <Parameter Name="Budget_DefaultConnection" Value="Server=localhost;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;" />
     <Parameter Name="Sharing_DefaultConnection" Value="Server=localhost;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;" />

@@ -714,6 +714,107 @@ namespace SharingService
             }
         }
 
+        public async Task<ReminderDto?> CreateSharedReminderAsync(string token, CreateReminderRequestDto request)
+        {
+            if (!IsValidReminder(request.Title, request.ReminderAt))
+            {
+                return null;
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null || await repository.GetTripPlanByIdAsync(shareToken.TripPlanId) is null)
+                {
+                    return null;
+                }
+
+                var reminder = new ReminderModel
+                {
+                    Id = Guid.NewGuid(),
+                    TripPlanId = shareToken.TripPlanId,
+                    Title = request.Title.Trim(),
+                    Description = NormalizeOptionalText(request.Description),
+                    ReminderAt = request.ReminderAt,
+                    IsCompleted = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var created = await repository.CreateReminderAsync(reminder);
+                return ToDto(created);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared reminder create failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<ReminderDto?> UpdateSharedReminderAsync(
+            string token,
+            Guid reminderId,
+            UpdateReminderRequestDto request)
+        {
+            if (reminderId == Guid.Empty || !IsValidReminder(request.Title, request.ReminderAt))
+            {
+                return null;
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null)
+                {
+                    return null;
+                }
+
+                var reminder = await repository.GetReminderByIdForTripPlanAsync(shareToken.TripPlanId, reminderId);
+                if (reminder is null)
+                {
+                    return null;
+                }
+
+                reminder.Title = request.Title.Trim();
+                reminder.Description = NormalizeOptionalText(request.Description);
+                reminder.ReminderAt = request.ReminderAt;
+                reminder.IsCompleted = request.IsCompleted;
+                reminder.UpdatedAt = DateTime.UtcNow;
+
+                var updated = await repository.UpdateReminderAsync(reminder);
+                return updated ? ToDto(reminder) : null;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared reminder update failed", exception);
+                return null;
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteSharedReminderAsync(string token, Guid reminderId)
+        {
+            if (reminderId == Guid.Empty)
+            {
+                return Failure("Reminder was not found.");
+            }
+
+            try
+            {
+                var shareToken = await ValidateShareTokenForEditAsync(token);
+                if (shareToken is null)
+                {
+                    return Failure("Share token does not allow editing.");
+                }
+
+                var deleted = await repository.DeleteReminderAsync(shareToken.TripPlanId, reminderId);
+                return deleted ? Success("Reminder deleted.") : Failure("Reminder was not found.");
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            {
+                LogDatabaseError("Shared reminder delete failed", exception);
+                return Failure(exception.Message);
+            }
+        }
+
         private async Task<ShareTokenModel?> ValidateShareTokenForViewAsync(string token)
         {
             if (string.IsNullOrWhiteSpace(token))
@@ -888,6 +989,13 @@ namespace SharingService
         {
             return !string.IsNullOrWhiteSpace(title)
                 && title.Trim().Length <= 150;
+        }
+
+        private static bool IsValidReminder(string title, DateTime reminderAt)
+        {
+            return !string.IsNullOrWhiteSpace(title)
+                && title.Trim().Length <= 150
+                && reminderAt != default;
         }
 
         private static string? NormalizeOptionalText(string? value)

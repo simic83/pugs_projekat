@@ -8,4 +8,7 @@
   <Section Name="Authentication">
     <Parameter Name="AllowDevUserHeaderFallback" Value="false" />
   </Section>
+  <Section Name="Cors">
+    <Parameter Name="AllowedOrigins" Value="http://localhost:5173;http://127.0.0.1:5173" />
+  </Section>
 </Settings>

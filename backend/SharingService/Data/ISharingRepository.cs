@@ -71,4 +71,12 @@ internal interface ISharingRepository
     Task<bool> DeleteNoteAsync(Guid tripPlanId, Guid noteId);
 
     Task<List<ReminderModel>> GetRemindersForTripPlanAsync(Guid tripPlanId);
+
+    Task<ReminderModel> CreateReminderAsync(ReminderModel reminder);
+
+    Task<ReminderModel?> GetReminderByIdForTripPlanAsync(Guid tripPlanId, Guid reminderId);
+
+    Task<bool> UpdateReminderAsync(ReminderModel reminder);
+
+    Task<bool> DeleteReminderAsync(Guid tripPlanId, Guid reminderId);
 }

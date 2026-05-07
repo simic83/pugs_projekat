@@ -12,6 +12,8 @@ internal sealed class ApiGatewaySettings
 
     public bool AllowDevUserHeaderFallback { get; init; }
 
+    public IReadOnlyList<string> CorsAllowedOrigins { get; init; } = Array.Empty<string>();
+
     public void EnsureJwtConfigured()
     {
         if (string.IsNullOrWhiteSpace(JwtSecret))

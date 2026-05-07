@@ -16,7 +16,8 @@ internal static class FabricConfigurationProvider
             JwtSecret = Read(settings, "Jwt", "Secret"),
             JwtIssuer = Read(settings, "Jwt", "Issuer"),
             JwtAudience = Read(settings, "Jwt", "Audience"),
-            AllowDevUserHeaderFallback = ReadBool(settings, "Authentication", "AllowDevUserHeaderFallback")
+            AllowDevUserHeaderFallback = ReadBool(settings, "Authentication", "AllowDevUserHeaderFallback"),
+            CorsAllowedOrigins = ReadList(settings, "Cors", "AllowedOrigins")
         };
     }
 
@@ -36,5 +37,17 @@ internal static class FabricConfigurationProvider
     private static bool ReadBool(ConfigurationSettings settings, string sectionName, string parameterName)
     {
         return bool.TryParse(Read(settings, sectionName, parameterName), out var parsed) && parsed;
+    }
+
+    private static IReadOnlyList<string> ReadList(
+        ConfigurationSettings settings,
+        string sectionName,
+        string parameterName)
+    {
+        return Read(settings, sectionName, parameterName)
+            .Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(origin => !string.IsNullOrWhiteSpace(origin))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 }

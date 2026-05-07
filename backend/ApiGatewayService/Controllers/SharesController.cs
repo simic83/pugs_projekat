@@ -11,6 +11,7 @@ using TravelPlanner.Contracts.Destinations;
 using TravelPlanner.Contracts.Enums;
 using TravelPlanner.Contracts.Interfaces;
 using TravelPlanner.Contracts.Notes;
+using TravelPlanner.Contracts.Reminders;
 using TravelPlanner.Contracts.Sharing;
 using TravelPlanner.Contracts.Trips;
 
@@ -337,6 +338,56 @@ public sealed class SharesController : ControllerBase
         }
 
         var result = await sharingService.DeleteSharedNoteAsync(token, noteId);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    [HttpPost("api/shares/{token}/reminders")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ReminderDto>> CreateSharedReminder(string token, CreateReminderRequestDto request)
+    {
+        var sharingService = GatewayServiceProxyFactory.CreateStateful<ISharingService>(ServiceNames.SharingServiceUri);
+        var accessError = await ValidateSharedEditAccessAsync(sharingService, token);
+        if (accessError is not null)
+        {
+            return accessError;
+        }
+
+        var reminder = await sharingService.CreateSharedReminderAsync(token, request);
+        return reminder is null
+            ? InvalidEditRequest("Reminder request is invalid or trip plan was not found.")
+            : Created($"/api/shares/{token}/reminders/{reminder.Id}", reminder);
+    }
+
+    [HttpPut("api/shares/{token}/reminders/{reminderId:guid}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ReminderDto>> UpdateSharedReminder(
+        string token,
+        Guid reminderId,
+        UpdateReminderRequestDto request)
+    {
+        var sharingService = GatewayServiceProxyFactory.CreateStateful<ISharingService>(ServiceNames.SharingServiceUri);
+        var accessError = await ValidateSharedEditAccessAsync(sharingService, token);
+        if (accessError is not null)
+        {
+            return accessError;
+        }
+
+        var reminder = await sharingService.UpdateSharedReminderAsync(token, reminderId, request);
+        return reminder is null ? NotFound() : Ok(reminder);
+    }
+
+    [HttpDelete("api/shares/{token}/reminders/{reminderId:guid}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<OperationResultDto>> DeleteSharedReminder(string token, Guid reminderId)
+    {
+        var sharingService = GatewayServiceProxyFactory.CreateStateful<ISharingService>(ServiceNames.SharingServiceUri);
+        var accessError = await ValidateSharedEditAccessAsync(sharingService, token);
+        if (accessError is not null)
+        {
+            return accessError;
+        }
+
+        var result = await sharingService.DeleteSharedReminderAsync(token, reminderId);
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 

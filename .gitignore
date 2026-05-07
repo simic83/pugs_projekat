@@ -6,7 +6,7 @@ obj/
 node_modules/
 dist/
 .env
+!frontend/.env
 *.user
 *.suo
 *.log
-

@@ -1,5 +1,4 @@
 import {
-  BellRing,
   Calendar,
   CalendarDays,
   Info,
@@ -22,6 +21,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ActivityCalendar } from "../components/ActivityCalendar.jsx";
 import { FormFieldError } from "../components/trips/FormFieldError.jsx";
+import { RemindersSection } from "../components/trips/RemindersSection.jsx";
 import { useApp } from "../context/AppContext.jsx";
 import { EXPENSE_CATEGORIES, createExpenseFormModel, createExpenseRequestModel } from "../models/budget.js";
 import {
@@ -30,6 +30,11 @@ import {
   createChecklistItemUpdateRequestModel,
 } from "../models/checklist.js";
 import { createNoteFormModel, createNoteRequestModel } from "../models/notes.js";
+import {
+  createReminderFormModel,
+  createReminderRequestModel,
+  createReminderUpdateRequestModel,
+} from "../models/reminders.js";
 import { SHARE_ACCESS_LEVELS } from "../models/sharing.js";
 import {
   ACTIVITY_STATUS,
@@ -48,6 +53,7 @@ import {
   validateDestination,
   validateExpense,
   validateNote,
+  validateReminder,
   validateTripPlan,
 } from "../utils/validation.js";
 
@@ -58,6 +64,7 @@ const emptyFormErrors = {
   expense: {},
   checklist: {},
   note: {},
+  reminder: {},
 };
 
 export function SharedTripPlanPage() {
@@ -70,12 +77,14 @@ export function SharedTripPlanPage() {
   const [expenseForm, setExpenseForm] = useState(createExpenseFormModel);
   const [checklistForm, setChecklistForm] = useState(createChecklistItemFormModel);
   const [noteForm, setNoteForm] = useState(createNoteFormModel);
+  const [reminderForm, setReminderForm] = useState(createReminderFormModel);
   const [activityViewMode, setActivityViewMode] = useState("list");
   const [editingDestinationId, setEditingDestinationId] = useState(null);
   const [editingActivityId, setEditingActivityId] = useState(null);
   const [editingExpenseId, setEditingExpenseId] = useState(null);
   const [editingChecklistItemId, setEditingChecklistItemId] = useState(null);
   const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editingReminderId, setEditingReminderId] = useState(null);
   const [error, setError] = useState("");
   const [formErrors, setFormErrors] = useState(emptyFormErrors);
   const [message, setMessage] = useState("");
@@ -106,11 +115,13 @@ export function SharedTripPlanPage() {
       setEditingExpenseId,
       setEditingChecklistItemId,
       setEditingNoteId,
+      setEditingReminderId,
       setDestinationForm,
       setActivityForm,
       setExpenseForm,
       setChecklistForm,
       setNoteForm,
+      setReminderForm,
     );
 
     try {
@@ -187,6 +198,15 @@ export function SharedTripPlanPage() {
   const updateSharedFormField = (formName, setForm, event) => {
     clearFormFieldError(formName, event.target.name);
     updateForm(setForm, event);
+  };
+
+  const updateSharedReminderField = (event) => {
+    const { checked, name, type, value } = event.target;
+    clearFormFieldError("reminder", name);
+    setReminderForm((currentForm) => ({
+      ...currentForm,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
   const stopInvalidSubmit = (formName, validationErrors) => {
@@ -467,6 +487,75 @@ export function SharedTripPlanPage() {
         cancelNoteEdit();
       }
     }, "Beleska je obrisana.");
+  };
+
+  const submitReminder = async (event) => {
+    event.preventDefault();
+
+    if (stopInvalidSubmit("reminder", validateReminder(reminderForm))) {
+      return;
+    }
+
+    await runSharedEdit(async () => {
+      const payload = createReminderRequestModel(reminderForm, tripPlan?.id);
+
+      if (editingReminderId) {
+        await sharedTripPlanService.saveReminder(token, editingReminderId, createReminderUpdateRequestModel({
+          title: payload.title,
+          description: payload.description,
+          reminderAt: payload.reminderAt,
+          isCompleted: Boolean(reminderForm.isCompleted),
+        }));
+      } else {
+        const created = await sharedTripPlanService.saveReminder(token, null, payload);
+        if (reminderForm.isCompleted && created?.id) {
+          await sharedTripPlanService.saveReminder(token, created.id, createReminderUpdateRequestModel({
+            title: payload.title,
+            description: payload.description,
+            reminderAt: payload.reminderAt,
+            isCompleted: true,
+          }));
+        }
+      }
+
+      cancelReminderEdit();
+    }, editingReminderId ? "Podsjetnik je izmenjen." : "Podsjetnik je dodat.");
+  };
+
+  const editReminder = (reminder) => {
+    if (!canEdit) {
+      return;
+    }
+
+    setEditingReminderId(reminder.id);
+    clearFormErrors("reminder");
+    setReminderForm(createReminderFormModel(reminder));
+  };
+
+  const cancelReminderEdit = () => {
+    setEditingReminderId(null);
+    setReminderForm(createReminderFormModel());
+    clearFormErrors("reminder");
+  };
+
+  const toggleReminder = async (reminder, isCompleted) => {
+    await runSharedEdit(async () => {
+      await sharedTripPlanService.saveReminder(token, reminder.id, createReminderUpdateRequestModel({
+        title: reminder.title,
+        description: reminder.description || null,
+        reminderAt: reminder.reminderAt,
+        isCompleted,
+      }));
+    }, "Podsjetnik je izmenjen.");
+  };
+
+  const deleteReminder = async (reminderId) => {
+    await runSharedEdit(async () => {
+      await sharedTripPlanService.deleteReminder(token, reminderId);
+      if (editingReminderId === reminderId) {
+        cancelReminderEdit();
+      }
+    }, "Podsjetnik je obrisan.");
   };
 
   return (
@@ -1149,40 +1238,19 @@ export function SharedTripPlanPage() {
                   )}
                 </section>
 
-                <section className="section-card">
-                  <div className="section-header">
-                    <div>
-                      <h2 className="section-title section-title-row">
-                        <BellRing className="section-title-icon" aria-hidden="true" />
-                        Podsjetnici
-                      </h2>
-                      <p className="section-subtitle">Podsjetnici vezani za deljeni plan.</p>
-                    </div>
-                    <span className="badge">{reminderItems.length}</span>
-                  </div>
-
-                  <div className="item-list">
-                    {sortedReminders.map((reminder) => (
-                      <article className="list-item reminder-item" key={reminder.id}>
-                        <div className="list-item-main">
-                          <span className="list-item-title">{reminder.title}</span>
-                          <div className="reminder-meta">
-                            <span className="muted">{formatDateTime(reminder.reminderAt)}</span>
-                            <span className={`badge${reminder.isCompleted ? " badge-success" : " badge-muted"}`}>
-                              {reminder.isCompleted ? "Zavrseno" : "Nije zavrseno"}
-                            </span>
-                          </div>
-                          {reminder.description ? (
-                            <p className="list-item-description">{reminder.description}</p>
-                          ) : null}
-                        </div>
-                      </article>
-                    ))}
-                    {reminderItems.length === 0 ? (
-                      <div className="empty-state">Nema unetih podsjetnika.</div>
-                    ) : null}
-                  </div>
-                </section>
+                <RemindersSection
+                  canEdit={canEdit}
+                  editingReminderId={editingReminderId}
+                  errors={formErrors.reminder}
+                  form={reminderForm}
+                  onCancelEdit={cancelReminderEdit}
+                  onChange={updateSharedReminderField}
+                  onDelete={deleteReminder}
+                  onEdit={editReminder}
+                  onSubmit={submitReminder}
+                  onToggle={toggleReminder}
+                  reminders={sortedReminders}
+                />
 
                 {hasNotesSection ? (
                   <section className="section-card">
@@ -1302,22 +1370,26 @@ function resetEditState(
   setEditingExpenseId,
   setEditingChecklistItemId,
   setEditingNoteId,
+  setEditingReminderId,
   setDestinationForm,
   setActivityForm,
   setExpenseForm,
   setChecklistForm,
   setNoteForm,
+  setReminderForm,
 ) {
   setEditingDestinationId(null);
   setEditingActivityId(null);
   setEditingExpenseId(null);
   setEditingChecklistItemId(null);
   setEditingNoteId(null);
+  setEditingReminderId(null);
   setDestinationForm(createDestinationFormModel());
   setActivityForm(createActivityFormModel());
   setExpenseForm(createExpenseFormModel());
   setChecklistForm(createChecklistItemFormModel());
   setNoteForm(createNoteFormModel());
+  setReminderForm(createReminderFormModel());
 }
 
 function updateForm(setForm, event) {

@@ -17,6 +17,8 @@ namespace ApiGatewayService
 {
     internal sealed class ApiGatewayService : StatelessService
     {
+        private const string FrontendCorsPolicy = "FrontendCorsPolicy";
+
         public ApiGatewayService(StatelessServiceContext context)
             : base(context)
         { }
@@ -60,6 +62,20 @@ namespace ApiGatewayService
                                                 };
                                             });
                                         services.AddAuthorization();
+                                        if (settings.CorsAllowedOrigins.Count > 0)
+                                        {
+                                            services.AddCors(options =>
+                                            {
+                                                options.AddPolicy(FrontendCorsPolicy, policy =>
+                                                {
+                                                    policy
+                                                        .WithOrigins(settings.CorsAllowedOrigins.ToArray())
+                                                        .AllowAnyHeader()
+                                                        .AllowAnyMethod();
+                                                });
+                                            });
+                                        }
+
                                         services.AddControllers();
                                     })
                                     .UseServiceFabricIntegration(listener, ServiceFabricIntegrationOptions.None)
@@ -67,6 +83,11 @@ namespace ApiGatewayService
                                     .Configure(app =>
                                     {
                                         app.UseRouting();
+                                        if (settings.CorsAllowedOrigins.Count > 0)
+                                        {
+                                            app.UseCors(FrontendCorsPolicy);
+                                        }
+
                                         app.UseAuthentication();
                                         app.UseAuthorization();
                                         app.UseEndpoints(endpoints => endpoints.MapControllers());

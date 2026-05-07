@@ -10,6 +10,7 @@
     <Parameter Name="ApiGateway_JwtIssuer" DefaultValue="TravelPlanner.Local" />
     <Parameter Name="ApiGateway_JwtAudience" DefaultValue="TravelPlanner.Frontend" />
     <Parameter Name="ApiGateway_AllowDevUserHeaderFallback" DefaultValue="false" />
+    <Parameter Name="ApiGateway_CorsAllowedOrigins" DefaultValue="http://localhost:5173;http://127.0.0.1:5173" />
     <Parameter Name="TripPlanning_DefaultConnection" DefaultValue="" />
     <Parameter Name="Budget_DefaultConnection" DefaultValue="" />
     <Parameter Name="Sharing_DefaultConnection" DefaultValue="" />
@@ -83,6 +84,9 @@
           </Section>
           <Section Name="Authentication">
             <Parameter Name="AllowDevUserHeaderFallback" Value="[ApiGateway_AllowDevUserHeaderFallback]" />
+          </Section>
+          <Section Name="Cors">
+            <Parameter Name="AllowedOrigins" Value="[ApiGateway_CorsAllowedOrigins]" />
           </Section>
         </Settings>
       </ConfigOverride>

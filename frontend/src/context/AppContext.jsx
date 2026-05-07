@@ -421,6 +421,16 @@ export function AppProvider({ children }) {
       deleteNote(shareToken, noteId) {
         return sharingApi.deleteSharedNote(shareToken, noteId);
       },
+
+      saveReminder(shareToken, reminderId, request) {
+        return reminderId
+          ? sharingApi.updateSharedReminder(shareToken, reminderId, request)
+          : sharingApi.createSharedReminder(shareToken, request);
+      },
+
+      deleteReminder(shareToken, reminderId) {
+        return sharingApi.deleteSharedReminder(shareToken, reminderId);
+      },
     }),
     [],
   );
