@@ -39,7 +39,7 @@ export async function apiRequest(resourcePath, options = {}) {
   const data = await readJsonResponse(response);
 
   if (!response.ok) {
-    const error = new Error(data?.message ?? data?.title ?? response.statusText);
+    const error = new Error(getErrorMessage(data, response.statusText));
     error.status = response.status;
     error.details = data;
     throw error;
@@ -59,4 +59,22 @@ async function readJsonResponse(response) {
   } catch {
     return { title: text };
   }
+}
+
+function getErrorMessage(data, fallbackMessage) {
+  const validationMessages = getValidationMessages(data);
+  if (validationMessages.length > 0) {
+    return validationMessages.join(" ");
+  }
+
+  return data?.result?.message ?? data?.message ?? data?.title ?? fallbackMessage;
+}
+
+function getValidationMessages(data) {
+  const errors = data?.result?.errors ?? data?.errors;
+  if (!Array.isArray(errors)) {
+    return [];
+  }
+
+  return errors.map((error) => error?.message).filter(Boolean);
 }

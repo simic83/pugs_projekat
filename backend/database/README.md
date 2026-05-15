@@ -10,6 +10,12 @@ Service Fabric connection string za lokalni development treba da pokazuje na ovu
 Server=localhost;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;
 ```
 
+Ako je SQL Server instaliran kao named instance `SQLEXPRESS`, koristi:
+
+```text
+Server=localhost\SQLEXPRESS;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;
+```
+
 ## Kreiranje baze
 
 Ako treba samo kreirati bazu, otvoriti i pokrenuti:
@@ -62,3 +68,18 @@ SQL Server Management Studio ne pokrece automatski druge `.sql` fajlove iz folde
 ## Napomena za Service Fabric
 
 Parametri u Service Fabric konfiguraciji treba da koriste connection string ciji je `Database=TravelPlannerDb`. Ako svi servisi koriste jednu lokalnu bazu, isti connection string moze biti postavljen za identity, trip planning, budget i sharing servis.
+
+Lokalni Service Fabric servisi se cesto konektuju kao `NT AUTHORITY\NETWORK SERVICE`. Ako se koristi Windows authentication i API vraca login gresku za taj nalog, dodati mu pristup bazi:
+
+```sql
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'NT AUTHORITY\NETWORK SERVICE')
+    CREATE LOGIN [NT AUTHORITY\NETWORK SERVICE] FROM WINDOWS;
+
+USE TravelPlannerDb;
+
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'NT AUTHORITY\NETWORK SERVICE')
+    CREATE USER [NT AUTHORITY\NETWORK SERVICE] FOR LOGIN [NT AUTHORITY\NETWORK SERVICE];
+
+ALTER ROLE db_datareader ADD MEMBER [NT AUTHORITY\NETWORK SERVICE];
+ALTER ROLE db_datawriter ADD MEMBER [NT AUTHORITY\NETWORK SERVICE];
+```

@@ -262,6 +262,12 @@ Lokalni connection string koji koriste Service Fabric parametri:
 Server=localhost;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;
 ```
 
+Ako je lokalni SQL Server named instance `SQLEXPRESS`, koristiti:
+
+```text
+Server=localhost\SQLEXPRESS;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;
+```
+
 ---
 
 ## Pokretanje Projekta
