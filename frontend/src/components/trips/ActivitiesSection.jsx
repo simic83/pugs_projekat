@@ -24,8 +24,11 @@ export function ActivitiesSection({
   onEdit,
   onSubmit,
   onViewModeChange,
+  tripPlan,
 }) {
   const SubmitIcon = editingActivityId ? Save : Plus;
+  const tripStartDate = tripPlan?.startDate ? String(tripPlan.startDate).slice(0, 10) : undefined;
+  const tripEndDate = tripPlan?.endDate ? String(tripPlan.endDate).slice(0, 10) : undefined;
 
   return (
     <section className="section-card">
@@ -59,6 +62,8 @@ export function ActivitiesSection({
             <span className="field-label">Datum</span>
             <input
               className={`input${errors.activityDate ? " input-error" : ""}`}
+              max={tripEndDate}
+              min={tripStartDate}
               name="activityDate"
               onChange={onChange}
               required

@@ -310,7 +310,7 @@ export function TripPlansPage() {
     setError("");
     setMessage("");
 
-    if (stopInvalidSubmit("destination", validateDestination(destinationForm))) {
+    if (stopInvalidSubmit("destination", validateDestination(destinationForm, selectedTripPlan))) {
       return;
     }
 
@@ -364,7 +364,7 @@ export function TripPlansPage() {
     setError("");
     setMessage("");
 
-    if (stopInvalidSubmit("activity", validateActivity(activityForm))) {
+    if (stopInvalidSubmit("activity", validateActivity(activityForm, selectedTripPlan))) {
       return;
     }
 
@@ -813,6 +813,7 @@ export function TripPlansPage() {
                 onDelete={deleteDestination}
                 onEdit={editDestination}
                 onSubmit={submitDestination}
+                tripPlan={selectedTripPlan}
               />
 
               <ActivitiesSection
@@ -829,6 +830,7 @@ export function TripPlansPage() {
                 onEdit={editActivity}
                 onSubmit={submitActivity}
                 onViewModeChange={setActivityViewMode}
+                tripPlan={selectedTripPlan}
               />
 
               <ExpensesSection

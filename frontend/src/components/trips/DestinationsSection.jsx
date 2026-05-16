@@ -13,8 +13,11 @@ export function DestinationsSection({
   onDelete,
   onEdit,
   onSubmit,
+  tripPlan,
 }) {
   const SubmitIcon = editingDestinationId ? Save : Plus;
+  const tripStartDate = tripPlan?.startDate ? String(tripPlan.startDate).slice(0, 10) : undefined;
+  const tripEndDate = tripPlan?.endDate ? String(tripPlan.endDate).slice(0, 10) : undefined;
 
   return (
     <section className="section-card">
@@ -54,6 +57,8 @@ export function DestinationsSection({
             <span className="field-label">Datum dolaska</span>
             <input
               className={`input${errors.arrivalDate ? " input-error" : ""}`}
+              max={tripEndDate}
+              min={tripStartDate}
               name="arrivalDate"
               onChange={onChange}
               required
@@ -66,6 +71,8 @@ export function DestinationsSection({
             <span className="field-label">Datum odlaska</span>
             <input
               className={`input${errors.departureDate ? " input-error" : ""}`}
+              max={tripEndDate}
+              min={tripStartDate}
               name="departureDate"
               onChange={onChange}
               required

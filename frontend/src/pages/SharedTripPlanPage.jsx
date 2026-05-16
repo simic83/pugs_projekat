@@ -154,6 +154,8 @@ export function SharedTripPlanPage() {
   const ExpenseSubmitIcon = editingExpenseId ? Save : Plus;
   const ChecklistSubmitIcon = editingChecklistItemId ? Save : Plus;
   const NoteSubmitIcon = editingNoteId ? Save : Plus;
+  const tripStartDate = tripPlan?.startDate ? String(tripPlan.startDate).slice(0, 10) : undefined;
+  const tripEndDate = tripPlan?.endDate ? String(tripPlan.endDate).slice(0, 10) : undefined;
   const plannedBudget = budgetSummary?.plannedBudget ?? tripPlan?.plannedBudget ?? 0;
   const totalExpenses =
     budgetSummary?.totalExpenses ?? expenses.reduce((total, expense) => total + Number(expense.amount ?? 0), 0);
@@ -253,7 +255,7 @@ export function SharedTripPlanPage() {
   const submitDestination = async (event) => {
     event.preventDefault();
 
-    if (stopInvalidSubmit("destination", validateDestination(destinationForm))) {
+    if (stopInvalidSubmit("destination", validateDestination(destinationForm, tripPlan))) {
       return;
     }
 
@@ -293,7 +295,7 @@ export function SharedTripPlanPage() {
   const submitActivity = async (event) => {
     event.preventDefault();
 
-    if (stopInvalidSubmit("activity", validateActivity(activityForm))) {
+    if (stopInvalidSubmit("activity", validateActivity(activityForm, tripPlan))) {
       return;
     }
 
@@ -975,6 +977,8 @@ export function SharedTripPlanPage() {
                           <span className="field-label">Dolazak</span>
                           <input
                             className={`input${formErrors.destination.arrivalDate ? " input-error" : ""}`}
+                            max={tripEndDate}
+                            min={tripStartDate}
                             name="arrivalDate"
                             onChange={(event) => updateSharedFormField("destination", setDestinationForm, event)}
                             required
@@ -987,6 +991,8 @@ export function SharedTripPlanPage() {
                           <span className="field-label">Odlazak</span>
                           <input
                             className={`input${formErrors.destination.departureDate ? " input-error" : ""}`}
+                            max={tripEndDate}
+                            min={tripStartDate}
                             name="departureDate"
                             onChange={(event) => updateSharedFormField("destination", setDestinationForm, event)}
                             required
@@ -1093,6 +1099,8 @@ export function SharedTripPlanPage() {
                           <span className="field-label">Datum</span>
                           <input
                             className={`input${formErrors.activity.activityDate ? " input-error" : ""}`}
+                            max={tripEndDate}
+                            min={tripStartDate}
                             name="activityDate"
                             onChange={(event) => updateSharedFormField("activity", setActivityForm, event)}
                             required

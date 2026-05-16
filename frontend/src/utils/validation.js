@@ -38,7 +38,7 @@ export function validateTripPlan(data) {
   return errors;
 }
 
-export function validateDestination(data) {
+export function validateDestination(data, tripPlan = null) {
   const errors = {};
 
   if (isBlank(data?.name)) {
@@ -57,10 +57,18 @@ export function validateDestination(data) {
     errors.departureDate = "Datum odlaska ne sme biti pre datuma dolaska.";
   }
 
+  if (!errors.arrivalDate && !isWithinTripDates(data.arrivalDate, tripPlan)) {
+    errors.arrivalDate = createTripDateRangeMessage(tripPlan);
+  }
+
+  if (!errors.departureDate && !isWithinTripDates(data.departureDate, tripPlan)) {
+    errors.departureDate = createTripDateRangeMessage(tripPlan);
+  }
+
   return errors;
 }
 
-export function validateActivity(data) {
+export function validateActivity(data, tripPlan = null) {
   const errors = {};
 
   if (isBlank(data?.title)) {
@@ -69,6 +77,8 @@ export function validateActivity(data) {
 
   if (isBlank(data?.activityDate)) {
     errors.activityDate = "Datum aktivnosti je obavezan.";
+  } else if (!isWithinTripDates(data.activityDate, tripPlan)) {
+    errors.activityDate = createTripDateRangeMessage(tripPlan);
   }
 
   if (isNegative(data?.estimatedCost)) {
@@ -219,6 +229,23 @@ function isBeforeToday(value) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return date < today.getTime();
+}
+
+function isWithinTripDates(value, tripPlan) {
+  if (!tripPlan?.startDate || !tripPlan?.endDate || isBlank(value)) {
+    return true;
+  }
+
+  const date = toComparableDate(value);
+  return date >= toComparableDate(tripPlan.startDate) && date <= toComparableDate(tripPlan.endDate);
+}
+
+function createTripDateRangeMessage(tripPlan) {
+  return `Datum mora biti u periodu plana (${formatDateForMessage(tripPlan.startDate)} - ${formatDateForMessage(tripPlan.endDate)}).`;
+}
+
+function formatDateForMessage(value) {
+  return String(value).slice(0, 10);
 }
 
 function toComparableDate(value) {
