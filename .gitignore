@@ -1,5 +1,6 @@
 bin/
 obj/
+pkg/
 .vs/
 .idea/
 .vscode/
@@ -7,6 +8,11 @@ node_modules/
 dist/
 .env
 !frontend/.env
+*.csproj.lscache
 *.user
 *.suo
 *.log
+*.nupkg
+*.snupkg
+TestResults/
+coverage/
