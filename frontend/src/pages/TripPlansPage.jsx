@@ -1,4 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  BellRing,
+  CalendarDays,
+  FileText,
+  Info,
+  ListChecks,
+  MapPinned,
+  NotebookText,
+  Plus,
+  Share2,
+  Trash2,
+  Wallet,
+} from "lucide-react";
+import { Link } from "react-router-dom";
 import { groupActivitiesByDate } from "../components/ActivityCalendar.jsx";
 import { ActivitiesSection } from "../components/trips/ActivitiesSection.jsx";
 import { ChecklistSection } from "../components/trips/ChecklistSection.jsx";
@@ -11,7 +25,12 @@ import { SharingSection } from "../components/trips/SharingSection.jsx";
 import { TripPlanDetails } from "../components/trips/TripPlanDetails.jsx";
 import { TripPlanForm } from "../components/trips/TripPlanForm.jsx";
 import { TripPlanList } from "../components/trips/TripPlanList.jsx";
-import { buildSharedTripPlanLink, compareDates } from "../components/trips/tripDisplayUtils.js";
+import {
+  buildSharedTripPlanLink,
+  compareDates,
+  formatDateRange,
+  formatMoney,
+} from "../components/trips/tripDisplayUtils.js";
 import { useApp } from "../context/AppContext.jsx";
 import { createExpenseFormModel, createExpenseRequestModel } from "../models/budget.js";
 import {
@@ -57,6 +76,16 @@ const emptyFormErrors = {
   reminder: {},
   share: {},
 };
+
+const workspaceTabs = [
+  { id: "overview", label: "Pregled", Icon: Info },
+  { id: "route", label: "Ruta", Icon: MapPinned },
+  { id: "schedule", label: "Raspored", Icon: CalendarDays },
+  { id: "budget", label: "Budzet", Icon: Wallet },
+  { id: "prep", label: "Priprema", Icon: ListChecks },
+  { id: "notes", label: "Beleske", Icon: NotebookText },
+  { id: "sharing", label: "Deljenje", Icon: Share2 },
+];
 
 export function TripPlansPage() {
   const {
@@ -108,6 +137,8 @@ export function TripPlansPage() {
   const [generatedShareLink, setGeneratedShareLink] = useState("");
   const [visibleShareQrId, setVisibleShareQrId] = useState(null);
   const [activityViewMode, setActivityViewMode] = useState("list");
+  const [activeTripTab, setActiveTripTab] = useState("overview");
+  const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false);
   const [editingDestinationId, setEditingDestinationId] = useState(null);
   const [editingActivityId, setEditingActivityId] = useState(null);
   const [editingExpenseId, setEditingExpenseId] = useState(null);
@@ -143,12 +174,38 @@ export function TripPlansPage() {
     }
   }, [selectedTripPlan]);
 
+  useEffect(() => {
+    if (!isLoading && tripPlans.length === 0) {
+      setIsCreatePanelOpen(true);
+    }
+  }, [isLoading, tripPlans.length]);
+
   const sortedDestinations = useMemo(
     () => [...destinations].sort((first, second) => compareDates(first.arrivalDate, second.arrivalDate)),
     [destinations],
   );
 
   const activityGroups = useMemo(() => groupActivitiesByDate(activities), [activities]);
+
+  const tabCounts = useMemo(
+    () => ({
+      route: sortedDestinations.length,
+      schedule: activities.length,
+      budget: expenses.length,
+      prep: reminders.length + checklistItems.length,
+      notes: notes.length,
+      sharing: shares.length,
+    }),
+    [
+      activities.length,
+      checklistItems.length,
+      expenses.length,
+      notes.length,
+      reminders.length,
+      shares.length,
+      sortedDestinations.length,
+    ],
+  );
 
   const setFormValidationErrors = (formName, validationErrors) => {
     setFormErrors((currentErrors) => ({
@@ -239,6 +296,7 @@ export function TripPlansPage() {
 
   const selectTripPlan = (tripPlanId) => {
     selectTripPlanFromContext(tripPlanId);
+    setActiveTripTab("overview");
     resetTripPlanUiState();
   };
 
@@ -254,6 +312,8 @@ export function TripPlansPage() {
     try {
       await createTripPlan(createTripPlanRequestModel(tripPlanForm));
       setTripPlanForm(createTripPlanFormModel());
+      setActiveTripTab("overview");
+      setIsCreatePanelOpen(false);
       setMessage("Uspesno sacuvano.");
     } catch (requestError) {
       setError(getRequestErrorMessage(requestError));
@@ -267,6 +327,7 @@ export function TripPlansPage() {
     try {
       await removeTripPlan(tripPlanId);
       resetTripPlanUiState();
+      setActiveTripTab("overview");
       setGeneratedShareLink("");
       setVisibleShareQrId(null);
     } catch (requestError) {
@@ -737,36 +798,187 @@ export function TripPlansPage() {
     }
   };
 
+  const renderActiveTripTab = () => {
+    if (!selectedTripPlan) {
+      return null;
+    }
+
+    if (activeTripTab === "route") {
+      return (
+        <DestinationsSection
+          destinations={sortedDestinations}
+          editingDestinationId={editingDestinationId}
+          errors={formErrors.destination}
+          form={destinationForm}
+          onCancelEdit={cancelDestinationEdit}
+          onChange={updateDestinationField}
+          onDelete={deleteDestination}
+          onEdit={editDestination}
+          onSubmit={submitDestination}
+          tripPlan={selectedTripPlan}
+        />
+      );
+    }
+
+    if (activeTripTab === "schedule") {
+      return (
+        <ActivitiesSection
+          activities={activities}
+          activityGroups={activityGroups}
+          activityViewMode={activityViewMode}
+          editingActivityId={editingActivityId}
+          errors={formErrors.activity}
+          form={activityForm}
+          initialCalendarDate={selectedTripPlan.startDate}
+          onCancelEdit={cancelActivityEdit}
+          onChange={updateActivityField}
+          onDelete={deleteActivity}
+          onEdit={editActivity}
+          onSubmit={submitActivity}
+          onViewModeChange={setActivityViewMode}
+          tripPlan={selectedTripPlan}
+        />
+      );
+    }
+
+    if (activeTripTab === "budget") {
+      return (
+        <ExpensesSection
+          budgetSummary={budgetSummary}
+          editingExpenseId={editingExpenseId}
+          errors={formErrors.expense}
+          expenses={expenses}
+          form={expenseForm}
+          onCancelEdit={cancelExpenseEdit}
+          onChange={updateExpenseField}
+          onDelete={deleteExpense}
+          onEdit={editExpense}
+          onSubmit={submitExpense}
+          selectedTripPlan={selectedTripPlan}
+        />
+      );
+    }
+
+    if (activeTripTab === "prep") {
+      return (
+        <div className="prep-grid">
+          <RemindersSection
+            editingReminderId={editingReminderId}
+            errors={formErrors.reminder}
+            form={reminderForm}
+            onCancelEdit={cancelReminderEdit}
+            onChange={updateReminderField}
+            onDelete={deleteReminder}
+            onEdit={editReminder}
+            onSubmit={submitReminder}
+            onToggle={toggleReminder}
+            reminders={reminders}
+          />
+
+          <ChecklistSection
+            checklistItems={checklistItems}
+            editingChecklistItemId={editingChecklistItemId}
+            errors={formErrors.checklist}
+            form={checklistForm}
+            onCancelEdit={cancelChecklistEdit}
+            onChange={updateChecklistField}
+            onDelete={deleteChecklistItem}
+            onEdit={editChecklistItem}
+            onSubmit={submitChecklistItem}
+            onToggle={toggleChecklistItem}
+          />
+        </div>
+      );
+    }
+
+    if (activeTripTab === "notes") {
+      return (
+        <NotesSection
+          editingNoteId={editingNoteId}
+          errors={formErrors.note}
+          form={noteForm}
+          notes={notes}
+          onCancelEdit={cancelNoteEdit}
+          onChange={updateNoteField}
+          onDelete={deleteNote}
+          onEdit={editNote}
+          onSubmit={submitNote}
+        />
+      );
+    }
+
+    if (activeTripTab === "sharing") {
+      return (
+        <SharingSection
+          errors={formErrors.share}
+          generatedShareLink={generatedShareLink}
+          onAccessLevelChange={updateShareAccessLevel}
+          onExpiresAtChange={updateShareExpiresAt}
+          onRevoke={revokeShare}
+          onSubmit={createShare}
+          onToggleQr={setVisibleShareQrId}
+          shareAccessLevel={shareAccessLevel}
+          shareExpiresAt={shareExpiresAt}
+          shares={shares}
+          visibleShareQrId={visibleShareQrId}
+        />
+      );
+    }
+
+    return (
+      <TripPlanDetails
+        budgetSummary={budgetSummary}
+        errors={formErrors.selectedTripPlan}
+        form={selectedTripPlanForm}
+        onChange={updateSelectedTripPlanField}
+        onReset={resetSelectedTripPlanForm}
+        onSubmit={updateSelectedTripPlan}
+        tripPlan={selectedTripPlan}
+      />
+    );
+  };
+
   return (
     <div className="page-stack">
       <header className="page-header">
         <div>
           <h1 className="page-title">Moji planovi</h1>
-          <p className="page-subtitle">Pregled putovanja, troskova, aktivnosti i deljenih linkova.</p>
+          <p className="page-subtitle">Planovi, ruta, raspored i budzet na jednom mestu.</p>
         </div>
+        <button
+          className="btn btn-primary"
+          onClick={() => setIsCreatePanelOpen((currentValue) => !currentValue)}
+          type="button"
+        >
+          <Plus className="btn-icon" aria-hidden="true" />
+          {isCreatePanelOpen ? "Sakrij formu" : "Novi plan"}
+        </button>
       </header>
 
       {error ? <p className="alert alert-error">{error}</p> : null}
       {message ? <p className="alert alert-success">{message}</p> : null}
 
-      <section className="trips-layout">
-        <aside className="sidebar-column">
-          <section className="form-card">
-            <div className="section-header">
-              <div>
-                <h2 className="section-title">Novi plan</h2>
-                <p className="section-subtitle">Osnovni podaci za putovanje.</p>
-              </div>
+      {isCreatePanelOpen ? (
+        <section className="section-card trip-create-panel">
+          <div className="section-header">
+            <div>
+              <h2 className="section-title">Novi plan putovanja</h2>
+              <p className="section-subtitle">Naziv, datumi i okvirni budzet.</p>
             </div>
+          </div>
 
-            <TripPlanForm
-              errors={formErrors.tripPlan}
-              form={tripPlanForm}
-              onChange={updateTripPlanField}
-              onSubmit={submitTripPlan}
-            />
-          </section>
+          <TripPlanForm
+            errors={formErrors.tripPlan}
+            form={tripPlanForm}
+            onChange={updateTripPlanField}
+            onSubmit={submitTripPlan}
+            submitLabel="Sacuvaj plan"
+          />
+        </section>
+      ) : null}
 
+      <section className="planner-layout">
+        <aside className="planner-rail">
           <TripPlanList
             isLoading={isLoading}
             onDelete={deleteTripPlan}
@@ -776,118 +988,94 @@ export function TripPlansPage() {
           />
         </aside>
 
-        <section className="details-column">
+        <section className="planner-workspace">
           {selectedTripPlan ? (
             <>
-              <TripPlanDetails
-                budgetSummary={budgetSummary}
-                errors={formErrors.selectedTripPlan}
-                form={selectedTripPlanForm}
-                onChange={updateSelectedTripPlanField}
-                onDelete={deleteTripPlan}
-                onReset={resetSelectedTripPlanForm}
-                onSubmit={updateSelectedTripPlan}
-                tripPlan={selectedTripPlan}
-              />
+              <div className="workspace-hero">
+                <div className="workspace-hero-main">
+                  <span className="eyebrow">Izabrani plan</span>
+                  <h2 className="workspace-title">{selectedTripPlan.title}</h2>
+                  <p className="section-subtitle">
+                    {formatDateRange(selectedTripPlan.startDate, selectedTripPlan.endDate)}
+                  </p>
+                </div>
 
-              <RemindersSection
-                editingReminderId={editingReminderId}
-                errors={formErrors.reminder}
-                form={reminderForm}
-                onCancelEdit={cancelReminderEdit}
-                onChange={updateReminderField}
-                onDelete={deleteReminder}
-                onEdit={editReminder}
-                onSubmit={submitReminder}
-                onToggle={toggleReminder}
-                reminders={reminders}
-              />
+                <div className="button-row workspace-actions">
+                  <Link className="btn btn-secondary" to={`/trip-plans/${selectedTripPlan.id}/report`}>
+                    <FileText className="btn-icon" aria-hidden="true" />
+                    PDF izvestaj
+                  </Link>
+                  <button
+                    className="btn btn-danger-soft"
+                    onClick={() => deleteTripPlan(selectedTripPlan.id)}
+                    type="button"
+                  >
+                    <Trash2 className="btn-icon" aria-hidden="true" />
+                    Obrisi plan
+                  </button>
+                </div>
 
-              <DestinationsSection
-                destinations={sortedDestinations}
-                editingDestinationId={editingDestinationId}
-                errors={formErrors.destination}
-                form={destinationForm}
-                onCancelEdit={cancelDestinationEdit}
-                onChange={updateDestinationField}
-                onDelete={deleteDestination}
-                onEdit={editDestination}
-                onSubmit={submitDestination}
-                tripPlan={selectedTripPlan}
-              />
+                <div className="workspace-metrics">
+                  <span className="stat-tile">
+                    <span className="stat-label">
+                      <Wallet className="stat-icon" aria-hidden="true" />
+                      Budzet
+                    </span>
+                    <span className="stat-value">
+                      {formatMoney(budgetSummary?.plannedBudget ?? selectedTripPlan.plannedBudget)}
+                    </span>
+                  </span>
+                  <span className="stat-tile">
+                    <span className="stat-label">
+                      <MapPinned className="stat-icon" aria-hidden="true" />
+                      Destinacije
+                    </span>
+                    <span className="stat-value">{sortedDestinations.length}</span>
+                  </span>
+                  <span className="stat-tile">
+                    <span className="stat-label">
+                      <CalendarDays className="stat-icon" aria-hidden="true" />
+                      Aktivnosti
+                    </span>
+                    <span className="stat-value">{activities.length}</span>
+                  </span>
+                  <span className="stat-tile">
+                    <span className="stat-label">
+                      <BellRing className="stat-icon" aria-hidden="true" />
+                      Priprema
+                    </span>
+                    <span className="stat-value">{reminders.length + checklistItems.length}</span>
+                  </span>
+                </div>
+              </div>
 
-              <ActivitiesSection
-                activities={activities}
-                activityGroups={activityGroups}
-                activityViewMode={activityViewMode}
-                editingActivityId={editingActivityId}
-                errors={formErrors.activity}
-                form={activityForm}
-                initialCalendarDate={selectedTripPlan.startDate}
-                onCancelEdit={cancelActivityEdit}
-                onChange={updateActivityField}
-                onDelete={deleteActivity}
-                onEdit={editActivity}
-                onSubmit={submitActivity}
-                onViewModeChange={setActivityViewMode}
-                tripPlan={selectedTripPlan}
-              />
+              <div className="workspace-tabs" aria-label="Delovi plana" role="tablist">
+                {workspaceTabs.map(({ Icon, id, label }) => {
+                  const count = tabCounts[id];
 
-              <ExpensesSection
-                budgetSummary={budgetSummary}
-                editingExpenseId={editingExpenseId}
-                errors={formErrors.expense}
-                expenses={expenses}
-                form={expenseForm}
-                onCancelEdit={cancelExpenseEdit}
-                onChange={updateExpenseField}
-                onDelete={deleteExpense}
-                onEdit={editExpense}
-                onSubmit={submitExpense}
-                selectedTripPlan={selectedTripPlan}
-              />
+                  return (
+                    <button
+                      aria-selected={activeTripTab === id}
+                      className={`workspace-tab${activeTripTab === id ? " is-active" : ""}`}
+                      key={id}
+                      onClick={() => setActiveTripTab(id)}
+                      role="tab"
+                      type="button"
+                    >
+                      <Icon className="workspace-tab-icon" aria-hidden="true" />
+                      <span>{label}</span>
+                      {typeof count === "number" ? <span className="tab-count">{count}</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
 
-              <ChecklistSection
-                checklistItems={checklistItems}
-                editingChecklistItemId={editingChecklistItemId}
-                errors={formErrors.checklist}
-                form={checklistForm}
-                onCancelEdit={cancelChecklistEdit}
-                onChange={updateChecklistField}
-                onDelete={deleteChecklistItem}
-                onEdit={editChecklistItem}
-                onSubmit={submitChecklistItem}
-                onToggle={toggleChecklistItem}
-              />
-
-              <NotesSection
-                editingNoteId={editingNoteId}
-                errors={formErrors.note}
-                form={noteForm}
-                notes={notes}
-                onCancelEdit={cancelNoteEdit}
-                onChange={updateNoteField}
-                onDelete={deleteNote}
-                onEdit={editNote}
-                onSubmit={submitNote}
-              />
-
-              <SharingSection
-                errors={formErrors.share}
-                generatedShareLink={generatedShareLink}
-                onAccessLevelChange={updateShareAccessLevel}
-                onExpiresAtChange={updateShareExpiresAt}
-                onRevoke={revokeShare}
-                onSubmit={createShare}
-                onToggleQr={setVisibleShareQrId}
-                shareAccessLevel={shareAccessLevel}
-                shareExpiresAt={shareExpiresAt}
-                shares={shares}
-                visibleShareQrId={visibleShareQrId}
-              />
+              <div className="workspace-tab-panel" role="tabpanel">
+                {renderActiveTripTab()}
+              </div>
             </>
           ) : (
-            <EmptyState>Kreiraj novi plan ili otvori detalje postojeceg plana.</EmptyState>
+            <EmptyState>Kreiraj novi plan ili otvori sacuvani plan.</EmptyState>
           )}
         </section>
       </section>

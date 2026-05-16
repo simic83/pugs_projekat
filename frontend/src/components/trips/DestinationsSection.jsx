@@ -32,107 +32,109 @@ export function DestinationsSection({
         <span className="badge">{destinations.length}</span>
       </div>
 
-      <form className="form-grid" noValidate onSubmit={onSubmit}>
-        <div className="form-row">
-          <label className="field">
-            <span className="field-label">Naziv</span>
-            <input
-              className={`input${errors.name ? " input-error" : ""}`}
-              name="name"
-              onChange={onChange}
-              placeholder="Atina"
-              required
-              value={form.name}
-            />
-            <FormFieldError message={errors.name} />
-          </label>
-          <label className="field">
-            <span className="field-label">Lokacija</span>
-            <input className="input" name="location" onChange={onChange} placeholder="Grcka" value={form.location} />
-          </label>
-        </div>
+      <div className="section-content-grid">
+        <form className="form-grid section-form" noValidate onSubmit={onSubmit}>
+          <div className="form-row">
+            <label className="field">
+              <span className="field-label">Naziv</span>
+              <input
+                className={`input${errors.name ? " input-error" : ""}`}
+                name="name"
+                onChange={onChange}
+                placeholder="Atina"
+                required
+                value={form.name}
+              />
+              <FormFieldError message={errors.name} />
+            </label>
+            <label className="field">
+              <span className="field-label">Lokacija</span>
+              <input className="input" name="location" onChange={onChange} placeholder="Grcka" value={form.location} />
+            </label>
+          </div>
 
-        <div className="form-row">
-          <label className="field">
-            <span className="field-label">Datum dolaska</span>
-            <input
-              className={`input${errors.arrivalDate ? " input-error" : ""}`}
-              max={tripEndDate}
-              min={tripStartDate}
-              name="arrivalDate"
-              onChange={onChange}
-              required
-              type="date"
-              value={form.arrivalDate}
-            />
-            <FormFieldError message={errors.arrivalDate} />
-          </label>
-          <label className="field">
-            <span className="field-label">Datum odlaska</span>
-            <input
-              className={`input${errors.departureDate ? " input-error" : ""}`}
-              max={tripEndDate}
-              min={tripStartDate}
-              name="departureDate"
-              onChange={onChange}
-              required
-              type="date"
-              value={form.departureDate}
-            />
-            <FormFieldError message={errors.departureDate} />
-          </label>
-        </div>
+          <div className="form-row">
+            <label className="field">
+              <span className="field-label">Datum dolaska</span>
+              <input
+                className={`input${errors.arrivalDate ? " input-error" : ""}`}
+                max={tripEndDate}
+                min={tripStartDate}
+                name="arrivalDate"
+                onChange={onChange}
+                required
+                type="date"
+                value={form.arrivalDate}
+              />
+              <FormFieldError message={errors.arrivalDate} />
+            </label>
+            <label className="field">
+              <span className="field-label">Datum odlaska</span>
+              <input
+                className={`input${errors.departureDate ? " input-error" : ""}`}
+                max={tripEndDate}
+                min={tripStartDate}
+                name="departureDate"
+                onChange={onChange}
+                required
+                type="date"
+                value={form.departureDate}
+              />
+              <FormFieldError message={errors.departureDate} />
+            </label>
+          </div>
 
-        <label className="field">
-          <span className="field-label">Opis</span>
-          <textarea
-            className="textarea"
-            name="description"
-            onChange={onChange}
-            placeholder="Smestaj, prevoz ili kratka napomena"
-            rows={3}
-            value={form.description}
-          />
-        </label>
+          <label className="field">
+            <span className="field-label">Opis</span>
+            <textarea
+              className="textarea"
+              name="description"
+              onChange={onChange}
+              placeholder="Smestaj, prevoz ili kratka napomena"
+              rows={3}
+              value={form.description}
+            />
+          </label>
 
-        <div className="button-row">
-          <button className="btn btn-primary" type="submit">
-            <SubmitIcon className="btn-icon" aria-hidden="true" />
-            {editingDestinationId ? "Sacuvaj destinaciju" : "Dodaj destinaciju"}
-          </button>
-          {editingDestinationId ? (
-            <button className="btn btn-secondary" onClick={onCancelEdit} type="button">
-              <X className="btn-icon" aria-hidden="true" />
-              Odustani
+          <div className="button-row">
+            <button className="btn btn-primary" type="submit">
+              <SubmitIcon className="btn-icon" aria-hidden="true" />
+              {editingDestinationId ? "Sacuvaj destinaciju" : "Dodaj destinaciju"}
             </button>
-          ) : null}
-        </div>
-      </form>
+            {editingDestinationId ? (
+              <button className="btn btn-secondary" onClick={onCancelEdit} type="button">
+                <X className="btn-icon" aria-hidden="true" />
+                Odustani
+              </button>
+            ) : null}
+          </div>
+        </form>
 
-      <div className="item-list">
-        {destinations.map((destination) => (
-          <article className="list-item" key={destination.id}>
-            <div className="list-item-main">
-              <span className="list-item-title">{destination.name}</span>
-              <p className="muted">
-                {destination.location ? `${destination.location} - ` : ""}
-                {formatDateRange(destination.arrivalDate, destination.departureDate)}
-              </p>
-              {destination.description ? <p className="list-item-description">{destination.description}</p> : null}
-            </div>
-            <div className="list-item-actions">
-              <button className="btn btn-secondary btn-small" onClick={() => onEdit(destination)} type="button">
-                <Pencil className="btn-icon" aria-hidden="true" />
-                Izmeni
-              </button>
-              <button className="btn btn-danger-soft btn-small" onClick={() => onDelete(destination.id)} type="button">
-                <Trash2 className="btn-icon" aria-hidden="true" />
-                Obrisi
-              </button>
-            </div>
-          </article>
-        ))}
-        {destinations.length === 0 ? <EmptyState>Nema dodatih destinacija.</EmptyState> : null}
+        <div className="item-list">
+          {destinations.map((destination) => (
+            <article className="list-item" key={destination.id}>
+              <div className="list-item-main">
+                <span className="list-item-title">{destination.name}</span>
+                <p className="muted">
+                  {destination.location ? `${destination.location} - ` : ""}
+                  {formatDateRange(destination.arrivalDate, destination.departureDate)}
+                </p>
+                {destination.description ? <p className="list-item-description">{destination.description}</p> : null}
+              </div>
+              <div className="list-item-actions">
+                <button className="btn btn-secondary btn-small" onClick={() => onEdit(destination)} type="button">
+                  <Pencil className="btn-icon" aria-hidden="true" />
+                  Izmeni
+                </button>
+                <button className="btn btn-danger-soft btn-small" onClick={() => onDelete(destination.id)} type="button">
+                  <Trash2 className="btn-icon" aria-hidden="true" />
+                  Obrisi
+                </button>
+              </div>
+            </article>
+          ))}
+          {destinations.length === 0 ? <EmptyState>Nema dodatih destinacija.</EmptyState> : null}
+        </div>
       </div>
     </section>
   );

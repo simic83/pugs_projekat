@@ -17,10 +17,10 @@ export const ACTIVITY_STATUS = {
 };
 
 export const ACTIVITY_STATUSES = [
-  { value: ACTIVITY_STATUS.PLANNED, label: "Planned" },
-  { value: ACTIVITY_STATUS.RESERVED, label: "Reserved" },
-  { value: ACTIVITY_STATUS.COMPLETED, label: "Completed" },
-  { value: ACTIVITY_STATUS.CANCELLED, label: "Cancelled" },
+  { value: ACTIVITY_STATUS.PLANNED, label: "Planirano" },
+  { value: ACTIVITY_STATUS.RESERVED, label: "Rezervisano" },
+  { value: ACTIVITY_STATUS.COMPLETED, label: "Zavrseno" },
+  { value: ACTIVITY_STATUS.CANCELLED, label: "Otkazano" },
 ];
 
 export const ACTIVITY_STATUS_OPTIONS = ACTIVITY_STATUSES;

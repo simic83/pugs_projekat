@@ -47,7 +47,7 @@ export function formatMoney(value) {
 
 export function getStatusLabel(value) {
   const numericValue = Number(value);
-  return ACTIVITY_STATUSES.find((status) => status.value === numericValue)?.label ?? "Planned";
+  return ACTIVITY_STATUSES.find((status) => status.value === numericValue)?.label ?? "Planirano";
 }
 
 export function getStatusClass(value) {
@@ -70,11 +70,11 @@ export function getStatusClass(value) {
 
 export function getExpenseCategoryLabel(value) {
   const numericValue = Number(value);
-  return EXPENSE_CATEGORIES.find((category) => category.value === numericValue)?.label ?? "Other";
+  return EXPENSE_CATEGORIES.find((category) => category.value === numericValue)?.label ?? "Ostalo";
 }
 
 export function getShareAccessLevelLabel(value) {
-  return Number(value) === SHARE_ACCESS_LEVELS.EDIT ? "EDIT" : "VIEW";
+  return Number(value) === SHARE_ACCESS_LEVELS.EDIT ? "Moze uredjivati" : "Samo pregled";
 }
 
 export function todayDateInput() {

@@ -36,26 +36,27 @@ export function ActivitiesSection({
         <div>
           <h2 className="section-title section-title-row">
             <CalendarDays className="section-title-icon" aria-hidden="true" />
-            Aktivnosti
+            Dnevni raspored
           </h2>
-          <p className="section-subtitle">Sortirano po datumima.</p>
+          <p className="section-subtitle">Aktivnosti rasporedjene po danima putovanja.</p>
         </div>
         <span className="badge">{activities.length}</span>
       </div>
 
-      <form className="form-grid" noValidate onSubmit={onSubmit}>
-        <label className="field">
-          <span className="field-label">Naziv aktivnosti</span>
-          <input
-            className={`input${errors.title ? " input-error" : ""}`}
-            name="title"
-            onChange={onChange}
-            placeholder="Obilazak muzeja"
-            required
-            value={form.title}
-          />
-          <FormFieldError message={errors.title} />
-        </label>
+      <div className="section-content-grid section-content-grid-wide">
+        <form className="form-grid section-form" noValidate onSubmit={onSubmit}>
+          <label className="field">
+            <span className="field-label">Naziv aktivnosti</span>
+            <input
+              className={`input${errors.title ? " input-error" : ""}`}
+              name="title"
+              onChange={onChange}
+              placeholder="Obilazak muzeja"
+              required
+              value={form.title}
+            />
+            <FormFieldError message={errors.title} />
+          </label>
 
         <div className="form-row">
           <label className="field">
@@ -133,43 +134,44 @@ export function ActivitiesSection({
           />
         </label>
 
-        <div className="button-row">
-          <button className="btn btn-primary" type="submit">
-            <SubmitIcon className="btn-icon" aria-hidden="true" />
-            {editingActivityId ? "Sacuvaj aktivnost" : "Dodaj aktivnost"}
-          </button>
-          {editingActivityId ? (
-            <button className="btn btn-secondary" onClick={onCancelEdit} type="button">
-              <X className="btn-icon" aria-hidden="true" />
-              Odustani
+          <div className="button-row">
+            <button className="btn btn-primary" type="submit">
+              <SubmitIcon className="btn-icon" aria-hidden="true" />
+              {editingActivityId ? "Sacuvaj aktivnost" : "Dodaj aktivnost"}
             </button>
-          ) : null}
-        </div>
-      </form>
+            {editingActivityId ? (
+              <button className="btn btn-secondary" onClick={onCancelEdit} type="button">
+                <X className="btn-icon" aria-hidden="true" />
+                Odustani
+              </button>
+            ) : null}
+          </div>
+        </form>
 
-      <div className="activity-view-toggle" aria-label="Prikaz aktivnosti" role="group">
-        <button
-          aria-pressed={activityViewMode === "list"}
-          className={`btn btn-small btn-toggle${activityViewMode === "list" ? " is-active" : ""}`}
-          onClick={() => onViewModeChange("list")}
-          type="button"
-        >
-          <List className="btn-icon" aria-hidden="true" />
-          Lista
-        </button>
-        <button
-          aria-pressed={activityViewMode === "calendar"}
-          className={`btn btn-small btn-toggle${activityViewMode === "calendar" ? " is-active" : ""}`}
-          onClick={() => onViewModeChange("calendar")}
-          type="button"
-        >
-          <Calendar className="btn-icon" aria-hidden="true" />
-          Kalendar
-        </button>
-      </div>
+        <div className="section-list-panel">
+          <div className="activity-view-toggle" aria-label="Prikaz aktivnosti" role="group">
+            <button
+              aria-pressed={activityViewMode === "list"}
+              className={`btn btn-small btn-toggle${activityViewMode === "list" ? " is-active" : ""}`}
+              onClick={() => onViewModeChange("list")}
+              type="button"
+            >
+              <List className="btn-icon" aria-hidden="true" />
+              Lista
+            </button>
+            <button
+              aria-pressed={activityViewMode === "calendar"}
+              className={`btn btn-small btn-toggle${activityViewMode === "calendar" ? " is-active" : ""}`}
+              onClick={() => onViewModeChange("calendar")}
+              type="button"
+            >
+              <Calendar className="btn-icon" aria-hidden="true" />
+              Kalendar
+            </button>
+          </div>
 
-      {activityViewMode === "list" ? (
-        <div className="item-list">
+          {activityViewMode === "list" ? (
+            <div className="item-list">
           {activityGroups.map(([dateKey, groupActivities]) => (
             <div className="activity-day" key={dateKey}>
               <h3 className="activity-day-title">
@@ -205,11 +207,13 @@ export function ActivitiesSection({
               ))}
             </div>
           ))}
-          {activities.length === 0 ? <EmptyState>Nema dodatih aktivnosti.</EmptyState> : null}
+              {activities.length === 0 ? <EmptyState>Nema dodatih aktivnosti.</EmptyState> : null}
+            </div>
+          ) : (
+            <ActivityCalendarView activities={activities} initialDate={initialCalendarDate} />
+          )}
         </div>
-      ) : (
-        <ActivityCalendarView activities={activities} initialDate={initialCalendarDate} />
-      )}
+      </div>
     </section>
   );
 }

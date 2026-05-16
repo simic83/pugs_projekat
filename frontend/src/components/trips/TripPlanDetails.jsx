@@ -1,9 +1,8 @@
-import { FileText, Info, PiggyBank, Receipt, Trash2, Wallet } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Info, PiggyBank, Receipt, Wallet } from "lucide-react";
 import { formatDateRange, formatMoney } from "./tripDisplayUtils.js";
 import { TripPlanForm } from "./TripPlanForm.jsx";
 
-export function TripPlanDetails({ budgetSummary, errors = {}, form, onChange, onDelete, onReset, onSubmit, tripPlan }) {
+export function TripPlanDetails({ budgetSummary, errors = {}, form, onChange, onReset, onSubmit, tripPlan }) {
   return (
     <section className="section-card">
       <div className="section-header">
@@ -13,16 +12,6 @@ export function TripPlanDetails({ budgetSummary, errors = {}, form, onChange, on
             Osnovni podaci
           </h2>
           <p className="section-subtitle">Naziv, period, budzet i napomene za izabrani plan.</p>
-        </div>
-        <div className="button-row">
-          <Link className="btn btn-secondary" to={`/trip-plans/${tripPlan.id}/report`}>
-            <FileText className="btn-icon" aria-hidden="true" />
-            PDF izvestaj
-          </Link>
-          <button className="btn btn-danger-soft" onClick={() => onDelete(tripPlan.id)} type="button">
-            <Trash2 className="btn-icon" aria-hidden="true" />
-            Obrisi plan
-          </button>
         </div>
       </div>
 

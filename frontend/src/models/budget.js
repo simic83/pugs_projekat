@@ -19,11 +19,11 @@ export const EXPENSE_CATEGORY = {
 
 export const EXPENSE_CATEGORIES = [
   { value: EXPENSE_CATEGORY.TRANSPORT, label: "Transport" },
-  { value: EXPENSE_CATEGORY.ACCOMMODATION, label: "Accommodation" },
-  { value: EXPENSE_CATEGORY.FOOD, label: "Food" },
-  { value: EXPENSE_CATEGORY.TICKETS, label: "Tickets" },
-  { value: EXPENSE_CATEGORY.SHOPPING, label: "Shopping" },
-  { value: EXPENSE_CATEGORY.OTHER, label: "Other" },
+  { value: EXPENSE_CATEGORY.ACCOMMODATION, label: "Smestaj" },
+  { value: EXPENSE_CATEGORY.FOOD, label: "Hrana" },
+  { value: EXPENSE_CATEGORY.TICKETS, label: "Ulaznice" },
+  { value: EXPENSE_CATEGORY.SHOPPING, label: "Kupovina" },
+  { value: EXPENSE_CATEGORY.OTHER, label: "Ostalo" },
 ];
 
 export function createExpenseModel(source = {}) {

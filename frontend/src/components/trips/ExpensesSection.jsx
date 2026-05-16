@@ -60,19 +60,20 @@ export function ExpensesSection({
         </span>
       </div>
 
-      <form className="form-grid" noValidate onSubmit={onSubmit}>
-        <label className="field">
-          <span className="field-label">Naziv troska</span>
-          <input
-            className={`input${errors.title ? " input-error" : ""}`}
-            name="title"
-            onChange={onChange}
-            placeholder="Avionska karta"
-            required
-            value={form.title}
-          />
-          <FormFieldError message={errors.title} />
-        </label>
+      <div className="section-content-grid">
+        <form className="form-grid section-form" noValidate onSubmit={onSubmit}>
+          <label className="field">
+            <span className="field-label">Naziv troska</span>
+            <input
+              className={`input${errors.title ? " input-error" : ""}`}
+              name="title"
+              onChange={onChange}
+              placeholder="Avionska karta"
+              required
+              value={form.title}
+            />
+            <FormFieldError message={errors.title} />
+          </label>
 
         <div className="form-row">
           <label className="field">
@@ -133,44 +134,45 @@ export function ExpensesSection({
           />
         </label>
 
-        <div className="button-row">
-          <button className="btn btn-primary" type="submit">
-            <SubmitIcon className="btn-icon" aria-hidden="true" />
-            {editingExpenseId ? "Sacuvaj trosak" : "Dodaj trosak"}
-          </button>
-          {editingExpenseId ? (
-            <button className="btn btn-secondary" onClick={onCancelEdit} type="button">
-              <X className="btn-icon" aria-hidden="true" />
-              Odustani
+          <div className="button-row">
+            <button className="btn btn-primary" type="submit">
+              <SubmitIcon className="btn-icon" aria-hidden="true" />
+              {editingExpenseId ? "Sacuvaj trosak" : "Dodaj trosak"}
             </button>
-          ) : null}
-        </div>
-      </form>
+            {editingExpenseId ? (
+              <button className="btn btn-secondary" onClick={onCancelEdit} type="button">
+                <X className="btn-icon" aria-hidden="true" />
+                Odustani
+              </button>
+            ) : null}
+          </div>
+        </form>
 
-      <div className="item-list">
-        {expenses.map((expense) => (
-          <article className="list-item" key={expense.id}>
-            <div className="list-item-main">
-              <span className="list-item-title">{expense.title}</span>
-              <p className="muted">
-                {getExpenseCategoryLabel(expense.category)} - {formatDate(expense.expenseDate)}
-              </p>
-              <p className="muted">{formatMoney(expense.amount)}</p>
-              {expense.description ? <p className="list-item-description">{expense.description}</p> : null}
-            </div>
-            <div className="list-item-actions">
-              <button className="btn btn-secondary btn-small" onClick={() => onEdit(expense)} type="button">
-                <Pencil className="btn-icon" aria-hidden="true" />
-                Izmeni
-              </button>
-              <button className="btn btn-danger-soft btn-small" onClick={() => onDelete(expense.id)} type="button">
-                <Trash2 className="btn-icon" aria-hidden="true" />
-                Obrisi
-              </button>
-            </div>
-          </article>
-        ))}
-        {expenses.length === 0 ? <EmptyState>Nema dodatih troskova.</EmptyState> : null}
+        <div className="item-list">
+          {expenses.map((expense) => (
+            <article className="list-item" key={expense.id}>
+              <div className="list-item-main">
+                <span className="list-item-title">{expense.title}</span>
+                <p className="muted">
+                  {getExpenseCategoryLabel(expense.category)} - {formatDate(expense.expenseDate)}
+                </p>
+                <p className="muted">{formatMoney(expense.amount)}</p>
+                {expense.description ? <p className="list-item-description">{expense.description}</p> : null}
+              </div>
+              <div className="list-item-actions">
+                <button className="btn btn-secondary btn-small" onClick={() => onEdit(expense)} type="button">
+                  <Pencil className="btn-icon" aria-hidden="true" />
+                  Izmeni
+                </button>
+                <button className="btn btn-danger-soft btn-small" onClick={() => onDelete(expense.id)} type="button">
+                  <Trash2 className="btn-icon" aria-hidden="true" />
+                  Obrisi
+                </button>
+              </div>
+            </article>
+          ))}
+          {expenses.length === 0 ? <EmptyState>Nema dodatih troskova.</EmptyState> : null}
+        </div>
       </div>
     </section>
   );

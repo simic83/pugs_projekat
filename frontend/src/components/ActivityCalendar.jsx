@@ -173,7 +173,7 @@ function compareDates(firstValue, secondValue) {
 
 function getStatusLabel(value) {
   const numericValue = Number(value);
-  return ACTIVITY_STATUSES.find((status) => status.value === numericValue)?.label ?? "Planned";
+  return ACTIVITY_STATUSES.find((status) => status.value === numericValue)?.label ?? "Planirano";
 }
 
 function getStatusClass(value) {

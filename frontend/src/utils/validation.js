@@ -86,7 +86,7 @@ export function validateActivity(data, tripPlan = null) {
   }
 
   if (!isAllowedOption(data?.status, ACTIVITY_STATUS_LABELS)) {
-    errors.status = "Status mora biti Planned, Reserved, Completed ili Cancelled.";
+    errors.status = "Status mora biti Planirano, Rezervisano, Zavrseno ili Otkazano.";
   }
 
   return errors;
@@ -102,7 +102,7 @@ export function validateExpense(data) {
   if (isBlank(data?.category)) {
     errors.category = "Kategorija je obavezna.";
   } else if (!isAllowedOption(data.category, EXPENSE_CATEGORY_LABELS)) {
-    errors.category = "Kategorija mora biti Transport, Accommodation, Food, Tickets, Shopping ili Other.";
+    errors.category = "Kategorija mora biti Transport, Smestaj, Hrana, Ulaznice, Kupovina ili Ostalo.";
   }
 
   if (isNegative(data?.amount)) {
@@ -160,9 +160,9 @@ export function validateShare(data) {
   const errors = {};
 
   if (isBlank(data?.accessLevel)) {
-    errors.accessLevel = "AccessLevel je obavezan.";
+    errors.accessLevel = "Dozvola deljenja je obavezna.";
   } else if (!isAllowedOption(data.accessLevel, SHARE_ACCESS_LEVEL_LABELS)) {
-    errors.accessLevel = "AccessLevel mora biti VIEW ili EDIT.";
+    errors.accessLevel = "Dozvola mora biti pregled ili uredjivanje.";
   }
 
   if (!isBlank(data?.expiresAt) && isBeforeToday(data.expiresAt)) {

@@ -590,7 +590,7 @@ export function SharedTripPlanPage() {
                 <h1 className="page-title">{tripPlan.title}</h1>
                 <p className="page-subtitle">{formatDateRange(tripPlan.startDate, tripPlan.endDate)}</p>
               </div>
-              <span className="badge">{canEdit ? "EDIT pristup" : "VIEW pristup"}</span>
+              <span className="badge">{canEdit ? "Uredjivanje" : "Samo pregled"}</span>
             </header>
 
             <section className="public-grid">
@@ -852,7 +852,7 @@ export function SharedTripPlanPage() {
                     <div>
                       <h2 className="section-title section-title-row">
                         <ListChecks className="section-title-icon" aria-hidden="true" />
-                        Checklist
+                        Lista za pripremu
                       </h2>
                       <p className="section-subtitle">Stavke za pripremu i njihov status.</p>
                     </div>
@@ -930,7 +930,7 @@ export function SharedTripPlanPage() {
                         )}
                       </article>
                     ))}
-                    {checklistItems.length === 0 ? <div className="empty-state">Nema checklist stavki.</div> : null}
+                    {checklistItems.length === 0 ? <div className="empty-state">Nema stavki za pripremu.</div> : null}
                   </div>
                 </section>
               </div>
@@ -1468,7 +1468,7 @@ function formatMoney(value) {
 
 function getStatusLabel(value) {
   const numericValue = Number(value);
-  return ACTIVITY_STATUSES.find((status) => status.value === numericValue)?.label ?? "Planned";
+  return ACTIVITY_STATUSES.find((status) => status.value === numericValue)?.label ?? "Planirano";
 }
 
 function getStatusClass(value) {
@@ -1491,7 +1491,7 @@ function getStatusClass(value) {
 
 function getExpenseCategoryLabel(value) {
   const numericValue = Number(value);
-  return EXPENSE_CATEGORIES.find((category) => category.value === numericValue)?.label ?? "Other";
+  return EXPENSE_CATEGORIES.find((category) => category.value === numericValue)?.label ?? "Ostalo";
 }
 
 function getRequestErrorMessage(requestError) {
