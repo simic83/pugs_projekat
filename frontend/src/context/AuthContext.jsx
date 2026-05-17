@@ -33,11 +33,9 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(
     async (request) => {
-      const response = await authApi.register(request);
-      persistAuth(response);
-      return response;
+      return authApi.register(request);
     },
-    [persistAuth],
+    [],
   );
 
   const logout = useCallback(() => {

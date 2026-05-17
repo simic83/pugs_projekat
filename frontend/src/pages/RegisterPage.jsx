@@ -41,7 +41,7 @@ export function RegisterPage() {
 
     try {
       await register(form);
-      navigate("/", { replace: true });
+      navigate("/login", { replace: true, state: { registered: true, email: form.email } });
     } catch (requestError) {
       setError(requestError.message || "Doslo je do greske.");
     } finally {

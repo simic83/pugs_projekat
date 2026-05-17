@@ -48,7 +48,7 @@ Centralni entitet sistema je **plan putovanja**. Oko njega su organizovani desti
 
 | Modul | Sta sistem podrzava |
 | --- | --- |
-| **Autentifikacija** | Registracija, logovanje, JWT tokeni, hashovane lozinke i role `User` / `Admin`. |
+| **Autentifikacija** | Registracija vodi nazad na login formu; login izdaje JWT token. Lozinke su hashovane, a podrzane su role `User` / `Admin`. |
 | **Planovi putovanja** | Kreiranje, pregled, izmjena i brisanje planova sa nazivom, opisom, datumima, budzetom i napomenama. |
 | **Destinacije** | Dodavanje vise destinacija po putovanju, sa lokacijom, datumima dolaska/odlaska i opisom. |
 | **Aktivnosti** | Organizacija po danima, vrijeme, lokacija, status, opis i procijenjeni trosak. |
@@ -68,7 +68,7 @@ Centralni entitet sistema je **plan putovanja**. Oko njega su organizovani desti
 | --- | --- |
 | **Frontend** | React 19, Vite 7, React Router, Context API, FullCalendar, qrcode.react, lucide-react |
 | **Backend** | .NET 8, ASP.NET Core Web API, Microsoft Service Fabric, Service Fabric Remoting |
-| **Baza** | Microsoft SQL Server, EF Core migracije kao primarni tok, legacy SQL skripte kao arhiva/alternativa |
+| **Baza** | Microsoft SQL Server, EF Core migracije i centralizovani `TravelPlanner.Persistence` sloj |
 | **Sigurnost** | JWT autentifikacija, role-based access, PBKDF2 password hashing |
 | **Integracija** | REST API preko `ApiGatewayService`, interna komunikacija preko Service Fabric Remoting-a |
 
@@ -132,7 +132,7 @@ pugs_projekat/
 |   |-- BudgetService/           # troskovi i budzet
 |   |-- SharingService/          # share tokeni i javni/shared pristup
 |   |-- Contracts/               # DTO modeli i Service Fabric Remoting interfejsi
-|   |-- database/                # legacy SQL skripte kao arhiva/alternativa
+|   |-- TravelPlanner.Persistence/ # EF Core DbContext, entity modeli i migracije
 |   |-- TravelPlanner/           # Service Fabric application project
 |   `-- TravelPlanner.sln
 |
@@ -188,7 +188,7 @@ Vanjski HTTP zahtjevi idu kroz:
 frontend -> ApiGatewayService -> Service Fabric Remoting -> interni servisi -> SQL Server
 ```
 
-DTO modeli su smjesteni u `backend/Contracts`, dok svaki servis ima svoje modele baze u `Models` folderima. Mapiranje izmedju DTO i DB modela radi se u backend sloju, tako da ugovori API-ja i perzistentni modeli ostaju odvojeni.
+DTO modeli su smjesteni u `backend/Contracts`, dok su EF Core `DbContext`, entity klase i migracije centralizovani u `backend/TravelPlanner.Persistence`. Servisi koriste taj persistence sloj kroz repository klase, tako da ugovori API-ja i perzistentni modeli ostaju odvojeni.
 
 ---
 
@@ -267,8 +267,7 @@ Generisanje SQL skripte iz EF migracija:
 dotnet dotnet-ef migrations script --idempotent `
   --project backend/TravelPlanner.Persistence `
   --startup-project backend/TravelPlanner.Persistence `
-  --context TravelPlannerDbContext `
-  --output backend/database/ef-migrations.sql
+  --context TravelPlannerDbContext
 ```
 
 `TravelPlannerDbContextFactory` koristi connection string iz `TRAVELPLANNER_CONNECTION_STRING` environment varijable. Ako varijabla nije postavljena, koristi lokalni `SQLEXPRESS` connection string:
@@ -278,30 +277,6 @@ Server=localhost\SQLEXPRESS;Database=TravelPlannerDb;Trusted_Connection=True;Tru
 ```
 
 EF migracija kreira bazu `TravelPlannerDb`, tabele, `__EFMigrationsHistory`, role i bootstrap admin nalog ako u sistemu ne postoji nijedan admin.
-
-### Legacy SQL skripte
-
-Rucne SQL migracije su ostavljene u `backend/database/migrations` samo kao legacy arhiva i alternativni fallback. Objedinjena legacy skripta je:
-
-```text
-backend/database/01_run_all_migrations.sql
-```
-
-Ne treba pokretati i EF migraciju i rucnu SQL skriptu nad istom praznom bazom, jer obje kreiraju istu semu. Za V7 tok koristiti EF Core komande iznad; SQL skripte koristiti samo ako se namjerno radi rucni SQL fallback.
-
-Ako `database update` prijavi da tabela kao `Roles` vec postoji, lokalna baza je vjerovatno ranije inicijalizovana legacy SQL skriptama bez `__EFMigrationsHistory` zapisa. Za cist EF start koristiti novu/praznu bazu ili svjesno obrisati staru lokalnu bazu prije EF migracija.
-
-Ako se migracije pokrecu rucno, preporuceni redosled je:
-
-1. `backend/database/migrations/identity/001_create_identity_schema.sql`
-2. `backend/database/migrations/trip-planning/001_create_trip_planning_schema.sql`
-3. `backend/database/migrations/trip-planning/002_create_checklist_items.sql`
-4. `backend/database/migrations/trip-planning/003_create_notes.sql`
-5. `backend/database/migrations/trip-planning/004_create_reminders.sql`
-6. `backend/database/migrations/trip-planning/005_add_trip_plan_owner_cascade.sql`
-7. `backend/database/migrations/trip-planning/006_add_required_date_checks.sql`
-8. `backend/database/migrations/budget/001_create_budget_schema.sql`
-9. `backend/database/migrations/sharing/001_create_share_tokens.sql`
 
 Lokalni connection string koji koriste Service Fabric parametri:
 
@@ -314,6 +289,10 @@ Ako je lokalni SQL Server named instance `SQLEXPRESS`, koristiti:
 ```text
 Server=localhost\SQLEXPRESS;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;
 ```
+
+Ako `database update` prijavi da tabela kao `Roles` vec postoji, lokalna baza je vjerovatno ranije inicijalizovana van EF Core migracija. Za cist EF start koristiti novu/praznu bazu ili svjesno obrisati staru lokalnu bazu prije migracija.
+
+Ako lokalni Service Fabric koristi Windows authentication, servisi se obicno konektuju kao `NT AUTHORITY\NETWORK SERVICE`. Tom SQL Server nalogu treba dodijeliti pristup nad bazom `TravelPlannerDb`, inace backend moze vratiti gresku pri citanju ili upisu podataka.
 
 ---
 
@@ -340,9 +319,9 @@ dotnet dotnet-ef database update `
   --context TravelPlannerDbContext
 ```
 
-Nakon toga baza `TravelPlannerDb` treba da sadrzi sve potrebne tabele, constraint-e, `__EFMigrationsHistory`, pocetne role i bootstrap admin nalog. Legacy SQL skripte iz `backend/database` koristiti samo kao arhivu ili rucnu alternativu ako se ne koristi EF Core tok.
+Nakon toga baza `TravelPlannerDb` treba da sadrzi sve potrebne tabele, constraint-e, `__EFMigrationsHistory`, pocetne role i bootstrap admin nalog.
 
-Ako lokalni Service Fabric koristi Windows authentication, servisi se obicno konektuju kao `NT AUTHORITY\NETWORK SERVICE`. Poslije migracija pokrenuti i helper skriptu `backend/database/02_grant_service_fabric_network_service.sql`, inace registracija moze zavrsiti sa `SqlServerRetryingExecutionStrategy` greskom jer servis nema pristup bazi.
+Ako lokalni Service Fabric koristi Windows authentication, servisi se obicno konektuju kao `NT AUTHORITY\NETWORK SERVICE`. Tom nalogu treba dodijeliti pristup nad bazom `TravelPlannerDb`, inace registracija, login ili rad sa planovima mogu zavrsiti SQL permission greskom.
 
 ### 2. Backend
 
@@ -445,7 +424,7 @@ Frontend generise QR kod za share link preko `qrcode.react`, dok backend validir
 | Stateless i stateful servisi | Implementirano |
 | SQL Server perzistencija | Implementirano |
 | EF Core migracije | Implementirano |
-| Legacy SQL skripte kao alternativa/arhiva | Implementirano |
+| Centralizovani `TravelPlanner.Persistence` sloj | Implementirano |
 | DTO i DB modeli odvojeni | Implementirano |
 | REST imenovanje resursa | Implementirano |
 | Hashovanje lozinki | Implementirano |
@@ -465,10 +444,9 @@ Frontend generise QR kod za share link preko `qrcode.react`, dok backend validir
 | `backend/TravelPlanner.sln` | Backend solution za Visual Studio |
 | `backend/TravelPlanner/ApplicationPackageRoot/ApplicationManifest.xml` | Glavni Service Fabric manifest |
 | `backend/TravelPlanner/StartupServices.xml` | Definicija stateless/stateful servisa |
+| `backend/TravelPlanner.Persistence/TravelPlanner.Persistence.csproj` | Centralni EF Core persistence projekat |
 | `backend/TravelPlanner.Persistence/TravelPlannerDbContext.cs` | EF Core DbContext za migracije |
 | `backend/TravelPlanner.Persistence/Migrations` | EF Core migracije |
-| `backend/database/01_run_all_migrations.sql` | Legacy objedinjena SQL alternativa |
-| `backend/database/README.md` | Dodatne napomene za bazu |
 | `frontend/package.json` | Frontend skripte i dependency lista |
 | `frontend/.env` | Backend URL za frontend |
 

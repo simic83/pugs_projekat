@@ -10,12 +10,15 @@ export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [form, setForm] = useState(createLoginFormModel);
+  const [form, setForm] = useState(() => createLoginFormModel({ email: location.state?.email }));
   const [error, setError] = useState("");
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const redirectTo = location.state?.from?.pathname ?? "/";
+  const registrationMessage = location.state?.registered
+    ? "Nalog je kreiran. Prijavi se svojim emailom i lozinkom."
+    : "";
 
   const updateField = (event) => {
     const { name, value } = event.target;
@@ -62,6 +65,8 @@ export function LoginPage() {
           <h1 className="auth-title">Login</h1>
           <p className="auth-subtitle">Prijavi se i nastavi sa planiranjem putovanja.</p>
         </div>
+
+        {registrationMessage ? <p className="alert alert-success">{registrationMessage}</p> : null}
 
         <label className="field">
           <span className="field-label">Email</span>
