@@ -1,5 +1,5 @@
 using System.Fabric;
-using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
 using Microsoft.ServiceFabric.Services.Remoting.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
@@ -12,6 +12,7 @@ using TravelPlanner.Contracts.Interfaces;
 using TravelPlanner.Contracts.Notes;
 using TravelPlanner.Contracts.Reminders;
 using TravelPlanner.Contracts.Trips;
+using TravelPlanner.Persistence;
 using TripPlanningService.Configuration;
 using TripPlanningService.Data;
 using TripPlanningService.Models;
@@ -20,18 +21,30 @@ namespace TripPlanningService
 {
     internal sealed class TripPlanningService : StatefulService, ITripPlanningService
     {
+        private readonly ServiceProvider serviceProvider;
         private readonly ITripPlanningRepository repository;
 
         public TripPlanningService(StatefulServiceContext context)
             : base(context)
         {
             var settings = FabricConfigurationProvider.Load(context);
-            repository = new TripPlanningRepository(settings.DefaultConnection);
+            serviceProvider = ConfigureServices(settings);
+            repository = serviceProvider.GetRequiredService<ITripPlanningRepository>();
         }
 
         protected override IEnumerable<ServiceReplicaListener> CreateServiceReplicaListeners()
         {
             return this.CreateServiceRemotingReplicaListeners();
+        }
+
+        private static ServiceProvider ConfigureServices(TripPlanningServiceSettings settings)
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton(settings);
+            services.AddTravelPlannerPersistence(settings.DefaultConnection);
+            services.AddSingleton<ITripPlanningRepository, TripPlanningRepository>();
+
+            return services.BuildServiceProvider();
         }
 
         public async Task<List<TripPlanDto>> GetTripPlansAsync(Guid userId)
@@ -46,7 +59,7 @@ namespace TripPlanningService
                 var tripPlans = await repository.GetTripPlansByOwnerAsync(userId);
                 return tripPlans.Select(ToDto).ToList();
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Trip plan list failed", exception);
                 return new List<TripPlanDto>();
@@ -60,7 +73,7 @@ namespace TripPlanningService
                 var tripPlans = await repository.GetAllTripPlansAsync();
                 return tripPlans.Select(ToDto).ToList();
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Admin trip plan list failed", exception);
                 return new List<TripPlanDto>();
@@ -74,7 +87,7 @@ namespace TripPlanningService
                 var tripPlan = await GetOwnedTripPlanAsync(tripPlanId, userId);
                 return tripPlan is null ? null : ToDto(tripPlan);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Trip plan lookup failed", exception);
                 return null;
@@ -107,7 +120,7 @@ namespace TripPlanningService
                 var created = await repository.CreateTripPlanAsync(tripPlan);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Trip plan create failed", exception);
                 return null;
@@ -145,7 +158,7 @@ namespace TripPlanningService
                 var updated = await repository.UpdateTripPlanAsync(tripPlan);
                 return updated ? ToDto(tripPlan) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Trip plan update failed", exception);
                 return null;
@@ -165,7 +178,7 @@ namespace TripPlanningService
                 var deleted = await repository.DeleteTripPlanAsync(tripPlanId);
                 return deleted ? Success("Trip plan deleted.") : Failure("Trip plan was not deleted.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Trip plan delete failed", exception);
                 return Failure(exception.Message);
@@ -184,7 +197,7 @@ namespace TripPlanningService
                 var deleted = await repository.DeleteTripPlanAsync(tripPlanId);
                 return deleted ? Success("Trip plan deleted.") : Failure("Trip plan was not found.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Admin trip plan delete failed", exception);
                 return Failure(exception.Message);
@@ -204,7 +217,7 @@ namespace TripPlanningService
                 var destinations = await repository.GetDestinationsByTripPlanIdAsync(tripPlanId);
                 return destinations.Select(ToDto).ToList();
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Destination list failed", exception);
                 return new List<DestinationDto>();
@@ -236,7 +249,7 @@ namespace TripPlanningService
                 var created = await repository.CreateDestinationAsync(destination);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Destination create failed", exception);
                 return null;
@@ -273,7 +286,7 @@ namespace TripPlanningService
                 var updated = await repository.UpdateDestinationAsync(destination);
                 return updated ? ToDto(destination) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Destination update failed", exception);
                 return null;
@@ -299,7 +312,7 @@ namespace TripPlanningService
                 var deleted = await repository.DeleteDestinationAsync(destinationId);
                 return deleted ? Success("Destination deleted.") : Failure("Destination was not deleted.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Destination delete failed", exception);
                 return Failure(exception.Message);
@@ -319,7 +332,7 @@ namespace TripPlanningService
                 var activities = await repository.GetActivitiesByTripPlanIdAsync(tripPlanId);
                 return activities.Select(ToDto).ToList();
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Activity list failed", exception);
                 return new List<ActivityDto>();
@@ -353,7 +366,7 @@ namespace TripPlanningService
                 var created = await repository.CreateActivityAsync(activity);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Activity create failed", exception);
                 return null;
@@ -392,7 +405,7 @@ namespace TripPlanningService
                 var updated = await repository.UpdateActivityAsync(activity);
                 return updated ? ToDto(activity) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Activity update failed", exception);
                 return null;
@@ -418,7 +431,7 @@ namespace TripPlanningService
                 var deleted = await repository.DeleteActivityAsync(activityId);
                 return deleted ? Success("Activity deleted.") : Failure("Activity was not deleted.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Activity delete failed", exception);
                 return Failure(exception.Message);
@@ -438,7 +451,7 @@ namespace TripPlanningService
                 var checklistItems = await repository.GetChecklistItemsByTripPlanIdAsync(tripPlanId);
                 return checklistItems.Select(ToDto).ToList();
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Checklist item list failed", exception);
                 return new List<ChecklistItemDto>();
@@ -478,7 +491,7 @@ namespace TripPlanningService
                 var created = await repository.CreateChecklistItemAsync(checklistItem);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Checklist item create failed", exception);
                 return null;
@@ -517,7 +530,7 @@ namespace TripPlanningService
                 var updated = await repository.UpdateChecklistItemAsync(checklistItem);
                 return updated ? ToDto(checklistItem) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Checklist item update failed", exception);
                 return null;
@@ -543,7 +556,7 @@ namespace TripPlanningService
                 var deleted = await repository.DeleteChecklistItemAsync(checklistItemId);
                 return deleted ? Success("Checklist item deleted.") : Failure("Checklist item was not deleted.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Checklist item delete failed", exception);
                 return Failure(exception.Message);
@@ -563,7 +576,7 @@ namespace TripPlanningService
                 var notes = await repository.GetNotesByTripPlanIdAsync(tripPlanId);
                 return notes.Select(ToDto).ToList();
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Note list failed", exception);
                 return new List<NoteDto>();
@@ -600,7 +613,7 @@ namespace TripPlanningService
                 var created = await repository.CreateNoteAsync(note);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Note create failed", exception);
                 return null;
@@ -639,7 +652,7 @@ namespace TripPlanningService
                 var updated = await repository.UpdateNoteAsync(note);
                 return updated ? ToDto(note) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Note update failed", exception);
                 return null;
@@ -665,7 +678,7 @@ namespace TripPlanningService
                 var deleted = await repository.DeleteNoteAsync(noteId);
                 return deleted ? Success("Note deleted.") : Failure("Note was not deleted.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Note delete failed", exception);
                 return Failure(exception.Message);
@@ -685,7 +698,7 @@ namespace TripPlanningService
                 var reminders = await repository.GetRemindersByTripPlanIdAsync(tripPlanId);
                 return reminders.Select(ToDto).ToList();
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Reminder list failed", exception);
                 return new List<ReminderDto>();
@@ -727,7 +740,7 @@ namespace TripPlanningService
                 var created = await repository.CreateReminderAsync(reminder);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Reminder create failed", exception);
                 return null;
@@ -768,7 +781,7 @@ namespace TripPlanningService
                 var updated = await repository.UpdateReminderAsync(reminder);
                 return updated ? ToDto(reminder) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Reminder update failed", exception);
                 return null;
@@ -794,7 +807,7 @@ namespace TripPlanningService
                 var deleted = await repository.DeleteReminderAsync(reminderId);
                 return deleted ? Success("Reminder deleted.") : Failure("Reminder was not deleted.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Reminder delete failed", exception);
                 return Failure(exception.Message);
@@ -1006,6 +1019,11 @@ namespace TripPlanningService
                 && Enum.IsDefined(typeof(ActivityStatus), parsed)
                     ? parsed
                     : ActivityStatus.Planned;
+        }
+
+        private static bool IsPersistenceException(Exception exception)
+        {
+            return PersistenceExceptionClassifier.IsPersistenceException(exception);
         }
 
         private static OperationResultDto Success(string message)

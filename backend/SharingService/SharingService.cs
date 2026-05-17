@@ -1,11 +1,12 @@
 using System.Fabric;
-using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
 using Microsoft.ServiceFabric.Services.Remoting.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
 using SharingService.Configuration;
 using SharingService.Data;
 using SharingService.Models;
+using TravelPlanner.Persistence;
 using TravelPlanner.Contracts.Activities;
 using TravelPlanner.Contracts.Budget;
 using TravelPlanner.Contracts.Checklist;
@@ -22,18 +23,30 @@ namespace SharingService
 {
     internal sealed class SharingService : StatefulService, ISharingService
     {
+        private readonly ServiceProvider serviceProvider;
         private readonly ISharingRepository repository;
 
         public SharingService(StatefulServiceContext context)
             : base(context)
         {
             var settings = FabricConfigurationProvider.Load(context);
-            repository = new SharingRepository(settings.DefaultConnection);
+            serviceProvider = ConfigureServices(settings);
+            repository = serviceProvider.GetRequiredService<ISharingRepository>();
         }
 
         protected override IEnumerable<ServiceReplicaListener> CreateServiceReplicaListeners()
         {
             return this.CreateServiceRemotingReplicaListeners();
+        }
+
+        private static ServiceProvider ConfigureServices(SharingServiceSettings settings)
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton(settings);
+            services.AddTravelPlannerPersistence(settings.DefaultConnection);
+            services.AddSingleton<ISharingRepository, SharingRepository>();
+
+            return services.BuildServiceProvider();
         }
 
         public async Task<ShareTokenDto?> CreateShareAsync(CreateShareRequestDto request)
@@ -55,7 +68,7 @@ namespace SharingService
                     Id = Guid.NewGuid(),
                     TripPlanId = request.TripPlanId,
                     Token = Guid.NewGuid().ToString("N"),
-                    AccessLevel = ToStoredAccessLevel(request.AccessLevel),
+                    AccessLevel = ShareTokenAccessPolicy.ToStoredAccessLevel(request.AccessLevel),
                     CreatedByUserId = request.CreatedByUserId,
                     CreatedAt = DateTime.UtcNow,
                     ExpiresAt = request.ExpiresAt,
@@ -65,7 +78,7 @@ namespace SharingService
                 var created = await repository.CreateShareTokenAsync(shareToken);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Share token create failed", exception);
                 return null;
@@ -79,7 +92,7 @@ namespace SharingService
                 var shareToken = await ValidateShareTokenForViewAsync(token);
                 return shareToken is null ? null : ToDto(shareToken);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Share token lookup failed", exception);
                 return null;
@@ -103,7 +116,7 @@ namespace SharingService
                 var shareTokens = await repository.GetShareTokensByTripPlanIdAsync(tripPlanId);
                 return shareTokens.Select(ToDto).ToList();
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Share token list failed", exception);
                 return new List<ShareTokenDto>();
@@ -127,7 +140,7 @@ namespace SharingService
                 var revoked = await repository.RevokeShareTokenAsync(tripPlanId, shareId);
                 return revoked ? Success("Share token revoked.") : Failure("Share token was not found.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Share token revoke failed", exception);
                 return Failure(exception.Message);
@@ -141,7 +154,7 @@ namespace SharingService
                 var shareToken = await ValidateShareTokenForViewAsync(token);
                 return shareToken is null ? null : await BuildSharedTripPlanAsync(shareToken);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared trip plan lookup failed", exception);
                 return null;
@@ -185,7 +198,7 @@ namespace SharingService
                 var updated = await repository.UpdateTripPlanAsync(tripPlan);
                 return updated ? await BuildSharedTripPlanAsync(shareToken) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared trip plan update failed", exception);
                 return null;
@@ -223,7 +236,7 @@ namespace SharingService
                 var created = await repository.CreateDestinationAsync(destination);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared destination create failed", exception);
                 return null;
@@ -270,7 +283,7 @@ namespace SharingService
                 var updated = await repository.UpdateDestinationAsync(destination);
                 return updated ? ToDto(destination) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared destination update failed", exception);
                 return null;
@@ -295,7 +308,7 @@ namespace SharingService
                 var deleted = await repository.DeleteDestinationAsync(shareToken.TripPlanId, destinationId);
                 return deleted ? Success("Destination deleted.") : Failure("Destination was not found.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared destination delete failed", exception);
                 return Failure(exception.Message);
@@ -335,7 +348,7 @@ namespace SharingService
                 var created = await repository.CreateActivityAsync(activity);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared activity create failed", exception);
                 return null;
@@ -384,7 +397,7 @@ namespace SharingService
                 var updated = await repository.UpdateActivityAsync(activity);
                 return updated ? ToDto(activity) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared activity update failed", exception);
                 return null;
@@ -409,7 +422,7 @@ namespace SharingService
                 var deleted = await repository.DeleteActivityAsync(shareToken.TripPlanId, activityId);
                 return deleted ? Success("Activity deleted.") : Failure("Activity was not found.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared activity delete failed", exception);
                 return Failure(exception.Message);
@@ -446,7 +459,7 @@ namespace SharingService
                 var created = await repository.CreateExpenseAsync(expense);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared expense create failed", exception);
                 return null;
@@ -487,7 +500,7 @@ namespace SharingService
                 var updated = await repository.UpdateExpenseAsync(expense);
                 return updated ? ToDto(expense) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared expense update failed", exception);
                 return null;
@@ -512,7 +525,7 @@ namespace SharingService
                 var deleted = await repository.DeleteExpenseAsync(shareToken.TripPlanId, expenseId);
                 return deleted ? Success("Expense deleted.") : Failure("Expense was not found.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared expense delete failed", exception);
                 return Failure(exception.Message);
@@ -548,7 +561,7 @@ namespace SharingService
                 var created = await repository.CreateChecklistItemAsync(checklistItem);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared checklist item create failed", exception);
                 return null;
@@ -588,7 +601,7 @@ namespace SharingService
                 var updated = await repository.UpdateChecklistItemAsync(checklistItem);
                 return updated ? ToDto(checklistItem) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared checklist item update failed", exception);
                 return null;
@@ -613,7 +626,7 @@ namespace SharingService
                 var deleted = await repository.DeleteChecklistItemAsync(shareToken.TripPlanId, checklistItemId);
                 return deleted ? Success("Checklist item deleted.") : Failure("Checklist item was not found.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared checklist item delete failed", exception);
                 return Failure(exception.Message);
@@ -647,7 +660,7 @@ namespace SharingService
                 var created = await repository.CreateNoteAsync(note);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared note create failed", exception);
                 return null;
@@ -682,7 +695,7 @@ namespace SharingService
                 var updated = await repository.UpdateNoteAsync(note);
                 return updated ? ToDto(note) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared note update failed", exception);
                 return null;
@@ -707,7 +720,7 @@ namespace SharingService
                 var deleted = await repository.DeleteNoteAsync(shareToken.TripPlanId, noteId);
                 return deleted ? Success("Note deleted.") : Failure("Note was not found.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared note delete failed", exception);
                 return Failure(exception.Message);
@@ -743,7 +756,7 @@ namespace SharingService
                 var created = await repository.CreateReminderAsync(reminder);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared reminder create failed", exception);
                 return null;
@@ -783,7 +796,7 @@ namespace SharingService
                 var updated = await repository.UpdateReminderAsync(reminder);
                 return updated ? ToDto(reminder) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared reminder update failed", exception);
                 return null;
@@ -808,7 +821,7 @@ namespace SharingService
                 var deleted = await repository.DeleteReminderAsync(shareToken.TripPlanId, reminderId);
                 return deleted ? Success("Reminder deleted.") : Failure("Reminder was not found.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Shared reminder delete failed", exception);
                 return Failure(exception.Message);
@@ -823,30 +836,13 @@ namespace SharingService
             }
 
             var shareToken = await repository.GetShareTokenByTokenAsync(token.Trim());
-            if (shareToken is null || shareToken.IsRevoked)
-            {
-                return null;
-            }
-
-            if (shareToken.ExpiresAt.HasValue && shareToken.ExpiresAt.Value <= DateTime.UtcNow)
-            {
-                return null;
-            }
-
-            if (!IsValidStoredAccessLevel(shareToken.AccessLevel))
-            {
-                return null;
-            }
-
-            return shareToken;
+            return ShareTokenAccessPolicy.AllowsView(shareToken, DateTime.UtcNow) ? shareToken : null;
         }
 
         private async Task<ShareTokenModel?> ValidateShareTokenForEditAsync(string token)
         {
             var shareToken = await ValidateShareTokenForViewAsync(token);
-            return shareToken is not null && ParseAccessLevel(shareToken.AccessLevel) == ShareAccessLevel.Edit
-                ? shareToken
-                : null;
+            return ShareTokenAccessPolicy.AllowsEdit(shareToken, DateTime.UtcNow) ? shareToken : null;
         }
 
         private async Task<SharedTripPlanDto?> BuildSharedTripPlanAsync(ShareTokenModel shareToken)
@@ -864,7 +860,7 @@ namespace SharingService
             var checklistItems = await repository.GetChecklistItemsByTripPlanIdAsync(shareToken.TripPlanId);
             var notes = await repository.GetNotesByTripPlanIdAsync(shareToken.TripPlanId);
             var reminders = await repository.GetRemindersForTripPlanAsync(shareToken.TripPlanId);
-            var accessLevel = ParseAccessLevel(shareToken.AccessLevel);
+            var accessLevel = ShareTokenAccessPolicy.ParseAccessLevel(shareToken.AccessLevel);
 
             return new SharedTripPlanDto
             {
@@ -1003,24 +999,6 @@ namespace SharingService
             return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
 
-        private static string ToStoredAccessLevel(ShareAccessLevel accessLevel)
-        {
-            return accessLevel == ShareAccessLevel.Edit ? "EDIT" : "VIEW";
-        }
-
-        private static ShareAccessLevel ParseAccessLevel(string accessLevel)
-        {
-            return string.Equals(accessLevel, "EDIT", StringComparison.OrdinalIgnoreCase)
-                ? ShareAccessLevel.Edit
-                : ShareAccessLevel.View;
-        }
-
-        private static bool IsValidStoredAccessLevel(string accessLevel)
-        {
-            return string.Equals(accessLevel, "VIEW", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(accessLevel, "EDIT", StringComparison.OrdinalIgnoreCase);
-        }
-
         private static ShareTokenDto ToDto(ShareTokenModel shareToken)
         {
             return new ShareTokenDto
@@ -1028,7 +1006,7 @@ namespace SharingService
                 Id = shareToken.Id,
                 TripPlanId = shareToken.TripPlanId,
                 Token = shareToken.Token,
-                AccessLevel = ParseAccessLevel(shareToken.AccessLevel),
+                AccessLevel = ShareTokenAccessPolicy.ParseAccessLevel(shareToken.AccessLevel),
                 CreatedByUserId = shareToken.CreatedByUserId,
                 CreatedAt = shareToken.CreatedAt,
                 ExpiresAt = shareToken.ExpiresAt,
@@ -1158,6 +1136,11 @@ namespace SharingService
                 && Enum.IsDefined(typeof(ExpenseCategory), parsed)
                     ? parsed
                     : ExpenseCategory.Other;
+        }
+
+        private static bool IsPersistenceException(Exception exception)
+        {
+            return PersistenceExceptionClassifier.IsPersistenceException(exception);
         }
 
         private static OperationResultDto Success(string message)

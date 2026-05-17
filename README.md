@@ -20,7 +20,7 @@
   <a href="#funkcionalnosti">Funkcionalnosti</a> |
   <a href="#arhitektura-sistema">Arhitektura</a> |
   <a href="#pokretanje-projekta">Pokretanje</a> |
-  <a href="#sql-migracije">SQL migracije</a> |
+  <a href="#ef-core-migracije">EF Core migracije</a> |
   <a href="#status-specifikacije">Status specifikacije</a>
 </p>
 
@@ -68,7 +68,7 @@ Centralni entitet sistema je **plan putovanja**. Oko njega su organizovani desti
 | --- | --- |
 | **Frontend** | React 19, Vite 7, React Router, Context API, FullCalendar, qrcode.react, lucide-react |
 | **Backend** | .NET 8, ASP.NET Core Web API, Microsoft Service Fabric, Service Fabric Remoting |
-| **Baza** | Microsoft SQL Server, SQL migracije |
+| **Baza** | Microsoft SQL Server, EF Core migracije kao primarni tok, legacy SQL skripte kao arhiva/alternativa |
 | **Sigurnost** | JWT autentifikacija, role-based access, PBKDF2 password hashing |
 | **Integracija** | REST API preko `ApiGatewayService`, interna komunikacija preko Service Fabric Remoting-a |
 
@@ -132,7 +132,7 @@ pugs_projekat/
 |   |-- BudgetService/           # troskovi i budzet
 |   |-- SharingService/          # share tokeni i javni/shared pristup
 |   |-- Contracts/               # DTO modeli i Service Fabric Remoting interfejsi
-|   |-- database/                # SQL skripte i migracije
+|   |-- database/                # legacy SQL skripte kao arhiva/alternativa
 |   |-- TravelPlanner/           # Service Fabric application project
 |   `-- TravelPlanner.sln
 |
@@ -232,17 +232,64 @@ Sistem vodi racuna o osnovnim sigurnosnim pravilima:
 
 ---
 
-## SQL Migracije
+## EF Core Migracije
 
-Migracije se nalaze u `backend/database/migrations`.
+EF Core migracije se nalaze u `backend/TravelPlanner.Persistence/Migrations`, a `DbContext` je u `backend/TravelPlanner.Persistence/TravelPlannerDbContext.cs`.
 
-Za lokalni development najjednostavnije je pokrenuti objedinjenu skriptu:
+Projekat ima lokalni `dotnet-ef` alat u `.config/dotnet-tools.json`. Prije prve upotrebe:
+
+```powershell
+dotnet tool restore
+```
+
+Primjena migracija na lokalnu bazu:
+
+```powershell
+dotnet dotnet-ef database update `
+  --project backend/TravelPlanner.Persistence `
+  --startup-project backend/TravelPlanner.Persistence `
+  --context TravelPlannerDbContext
+```
+
+Kreiranje nove migracije nakon promjene entity klasa ili `TravelPlannerDbContext` konfiguracije:
+
+```powershell
+dotnet dotnet-ef migrations add ImeMigracije `
+  --project backend/TravelPlanner.Persistence `
+  --startup-project backend/TravelPlanner.Persistence `
+  --context TravelPlannerDbContext `
+  --output-dir Migrations
+```
+
+Generisanje SQL skripte iz EF migracija:
+
+```powershell
+dotnet dotnet-ef migrations script --idempotent `
+  --project backend/TravelPlanner.Persistence `
+  --startup-project backend/TravelPlanner.Persistence `
+  --context TravelPlannerDbContext `
+  --output backend/database/ef-migrations.sql
+```
+
+`TravelPlannerDbContextFactory` koristi connection string iz `TRAVELPLANNER_CONNECTION_STRING` environment varijable. Ako varijabla nije postavljena, koristi lokalni `SQLEXPRESS` connection string:
+
+```text
+Server=localhost\SQLEXPRESS;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;
+```
+
+EF migracija kreira bazu `TravelPlannerDb`, tabele, `__EFMigrationsHistory`, role i bootstrap admin nalog ako u sistemu ne postoji nijedan admin.
+
+### Legacy SQL skripte
+
+Rucne SQL migracije su ostavljene u `backend/database/migrations` samo kao legacy arhiva i alternativni fallback. Objedinjena legacy skripta je:
 
 ```text
 backend/database/01_run_all_migrations.sql
 ```
 
-Skripta kreira bazu `TravelPlannerDb`, tabele, role i bootstrap admin nalog ako u sistemu ne postoji nijedan admin.
+Ne treba pokretati i EF migraciju i rucnu SQL skriptu nad istom praznom bazom, jer obje kreiraju istu semu. Za V7 tok koristiti EF Core komande iznad; SQL skripte koristiti samo ako se namjerno radi rucni SQL fallback.
+
+Ako `database update` prijavi da tabela kao `Roles` vec postoji, lokalna baza je vjerovatno ranije inicijalizovana legacy SQL skriptama bez `__EFMigrationsHistory` zapisa. Za cist EF start koristiti novu/praznu bazu ili svjesno obrisati staru lokalnu bazu prije EF migracija.
 
 Ako se migracije pokrecu rucno, preporuceni redosled je:
 
@@ -283,13 +330,19 @@ Server=localhost\SQLEXPRESS;Database=TravelPlannerDb;Trusted_Connection=True;Tru
 
 ### 1. Baza
 
-U SQL Server Management Studio otvoriti i pokrenuti:
+Primarni tok je EF Core. Iz root foldera repozitorijuma:
 
-```text
-backend/database/01_run_all_migrations.sql
+```powershell
+dotnet tool restore
+dotnet dotnet-ef database update `
+  --project backend/TravelPlanner.Persistence `
+  --startup-project backend/TravelPlanner.Persistence `
+  --context TravelPlannerDbContext
 ```
 
-Nakon toga baza `TravelPlannerDb` treba da sadrzi sve potrebne seme, tabele, constraint-e i pocetne role.
+Nakon toga baza `TravelPlannerDb` treba da sadrzi sve potrebne tabele, constraint-e, `__EFMigrationsHistory`, pocetne role i bootstrap admin nalog. Legacy SQL skripte iz `backend/database` koristiti samo kao arhivu ili rucnu alternativu ako se ne koristi EF Core tok.
+
+Ako lokalni Service Fabric koristi Windows authentication, servisi se obicno konektuju kao `NT AUTHORITY\NETWORK SERVICE`. Poslije migracija pokrenuti i helper skriptu `backend/database/02_grant_service_fabric_network_service.sql`, inace registracija moze zavrsiti sa `SqlServerRetryingExecutionStrategy` greskom jer servis nema pristup bazi.
 
 ### 2. Backend
 
@@ -391,7 +444,8 @@ Frontend generise QR kod za share link preko `qrcode.react`, dok backend validir
 | Service Fabric mikroservisi | Implementirano |
 | Stateless i stateful servisi | Implementirano |
 | SQL Server perzistencija | Implementirano |
-| SQL migracije | Implementirano |
+| EF Core migracije | Implementirano |
+| Legacy SQL skripte kao alternativa/arhiva | Implementirano |
 | DTO i DB modeli odvojeni | Implementirano |
 | REST imenovanje resursa | Implementirano |
 | Hashovanje lozinki | Implementirano |
@@ -400,7 +454,7 @@ Frontend generise QR kod za share link preko `qrcode.react`, dok backend validir
 | Cascade brisanje povezanih entiteta | Implementirano |
 | QR/share pristup `VIEW` i `EDIT` | Implementirano |
 | README uputstvo za pokretanje | Implementirano |
-| Use Case dijagram | Bice dodat naknadno |
+| Use Case dijagram | Dodat kao `usecase.png` |
 
 ---
 
@@ -411,7 +465,9 @@ Frontend generise QR kod za share link preko `qrcode.react`, dok backend validir
 | `backend/TravelPlanner.sln` | Backend solution za Visual Studio |
 | `backend/TravelPlanner/ApplicationPackageRoot/ApplicationManifest.xml` | Glavni Service Fabric manifest |
 | `backend/TravelPlanner/StartupServices.xml` | Definicija stateless/stateful servisa |
-| `backend/database/01_run_all_migrations.sql` | Objedinjena SQL migracija |
+| `backend/TravelPlanner.Persistence/TravelPlannerDbContext.cs` | EF Core DbContext za migracije |
+| `backend/TravelPlanner.Persistence/Migrations` | EF Core migracije |
+| `backend/database/01_run_all_migrations.sql` | Legacy objedinjena SQL alternativa |
 | `backend/database/README.md` | Dodatne napomene za bazu |
 | `frontend/package.json` | Frontend skripte i dependency lista |
 | `frontend/.env` | Backend URL za frontend |
@@ -429,12 +485,28 @@ npm run dev
 ## Kratak Redosled Za Cist Start
 
 1. Pokrenuti SQL Server.
-2. Pokrenuti `backend/database/01_run_all_migrations.sql`.
+2. Pokrenuti EF Core migracije komandom `dotnet dotnet-ef database update --project backend/TravelPlanner.Persistence --startup-project backend/TravelPlanner.Persistence --context TravelPlannerDbContext`.
 3. Provjeriti Service Fabric parametre u `Local.1Node.xml` ili `Local.5Node.xml`.
 4. Pokrenuti `backend/TravelPlanner.sln` kroz Visual Studio.
 5. Provjeriti `frontend/.env` i `VITE_API_BASE_URL`.
 6. Pokrenuti frontend sa `npm run dev`.
 7. Otvoriti `http://localhost:5173`.
+
+## Zavrsna Provjera
+
+```powershell
+dotnet build backend/TravelPlanner.sln
+dotnet dotnet-ef migrations list `
+  --project backend/TravelPlanner.Persistence `
+  --startup-project backend/TravelPlanner.Persistence `
+  --context TravelPlannerDbContext
+dotnet dotnet-ef database update `
+  --project backend/TravelPlanner.Persistence `
+  --startup-project backend/TravelPlanner.Persistence `
+  --context TravelPlannerDbContext
+```
+
+Rucno kroz aplikaciju provjeriti: registracija, login, kreiranje plana, dodavanje aktivnosti, dodavanje troska i kreiranje/otvaranje share linka.
 
 <p align="center">
   <img src="https://capsule-render.vercel.app/api?type=waving&color=0:F59E0B,50:22C55E,100:0EA5E9&height=110&section=footer" alt="Travel Planner footer wave" />

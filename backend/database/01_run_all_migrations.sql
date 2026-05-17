@@ -1,3 +1,7 @@
+-- LEGACY SQL ALTERNATIVE
+-- Primarni V7 tok je EF Core: backend/TravelPlanner.Persistence/Migrations.
+-- Ne pokretati nad bazom koja je vec inicijalizovana EF Core migracijama.
+
 IF DB_ID(N'TravelPlannerDb') IS NULL
 BEGIN
     CREATE DATABASE TravelPlannerDb;

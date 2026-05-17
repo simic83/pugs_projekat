@@ -1,3 +1,6 @@
+-- LEGACY SQL ALTERNATIVE
+-- Primarni V7 tok su EF Core migracije u backend/TravelPlanner.Persistence/Migrations.
+
 IF OBJECT_ID(N'dbo.Notes', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Notes

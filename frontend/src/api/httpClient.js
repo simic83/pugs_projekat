@@ -30,11 +30,18 @@ export async function apiRequest(resourcePath, options = {}) {
     headers.set("Authorization", `Bearer ${authToken}`);
   }
 
-  const response = await fetch(createApiUrl(resourcePath), {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const url = createApiUrl(resourcePath);
+  let response;
+
+  try {
+    response = await fetch(url, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error(`API nije dostupan na ${apiBaseUrl}. Provjeri da li je ApiGatewayService pokrenut.`);
+  }
 
   const data = await readJsonResponse(response);
 

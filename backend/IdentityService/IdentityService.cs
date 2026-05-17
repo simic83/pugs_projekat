@@ -4,7 +4,7 @@ using IdentityService.Data;
 using IdentityService.Mapping;
 using IdentityService.Security;
 using IdentityService.Validation;
-using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
 using Microsoft.ServiceFabric.Services.Remoting.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
@@ -13,6 +13,7 @@ using TravelPlanner.Contracts.Common;
 using TravelPlanner.Contracts.Enums;
 using TravelPlanner.Contracts.Interfaces;
 using TravelPlanner.Contracts.Users;
+using TravelPlanner.Persistence;
 
 namespace IdentityService
 {
@@ -20,6 +21,7 @@ namespace IdentityService
     {
         private const string BootstrapAdminAlias = "admin";
         private const string BootstrapAdminEmail = "admin@travelplanner.local";
+        private readonly ServiceProvider serviceProvider;
         private readonly IUserRepository userRepository;
         private readonly PasswordHasher passwordHasher;
         private readonly JwtTokenService jwtTokenService;
@@ -28,7 +30,8 @@ namespace IdentityService
             : base(context)
         {
             var settings = FabricConfigurationProvider.Load(context);
-            userRepository = new SqlUserRepository(settings.DefaultConnection);
+            serviceProvider = ConfigureServices(settings);
+            userRepository = serviceProvider.GetRequiredService<IUserRepository>();
             passwordHasher = new PasswordHasher();
             jwtTokenService = new JwtTokenService(settings);
         }
@@ -36,6 +39,16 @@ namespace IdentityService
         protected override IEnumerable<ServiceInstanceListener> CreateServiceInstanceListeners()
         {
             return this.CreateServiceRemotingInstanceListeners();
+        }
+
+        private static ServiceProvider ConfigureServices(IdentityServiceSettings settings)
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton(settings);
+            services.AddTravelPlannerPersistence(settings.DefaultConnection);
+            services.AddSingleton<IUserRepository, EfUserRepository>();
+
+            return services.BuildServiceProvider();
         }
 
         public async Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request)
@@ -70,7 +83,7 @@ namespace IdentityService
 
                 return Success(user);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 return Failure(exception.Message);
             }
@@ -96,7 +109,7 @@ namespace IdentityService
 
                 return Success(user);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 return Failure(exception.Message);
             }
@@ -109,7 +122,7 @@ namespace IdentityService
                 var user = await userRepository.GetByIdAsync(userId);
                 return user is null ? null : UserMapper.ToDto(user);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 ServiceEventSource.Current.ServiceMessage(Context, "Identity user lookup failed: {0}", exception.Message);
                 return null;
@@ -123,7 +136,7 @@ namespace IdentityService
                 var users = await userRepository.GetUsersAsync();
                 return users.Select(UserMapper.ToDto).ToList();
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 ServiceEventSource.Current.ServiceMessage(Context, "Identity user list failed: {0}", exception.Message);
                 return new List<UserDto>();
@@ -176,7 +189,7 @@ namespace IdentityService
                 var changed = await userRepository.SetUserRoleAsync(userId, roleName);
                 return changed ? ResultSuccess("User role changed.") : ResultFailure("User role was not changed.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 ServiceEventSource.Current.ServiceMessage(Context, "Identity user role change failed: {0}", exception.Message);
                 return ResultFailure(exception.Message);
@@ -213,7 +226,7 @@ namespace IdentityService
                 var deleted = await userRepository.DeleteUserAsync(userId);
                 return deleted ? ResultSuccess("User deleted.") : ResultFailure("User was not deleted.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 ServiceEventSource.Current.ServiceMessage(Context, "Identity user delete failed: {0}", exception.Message);
                 return ResultFailure(exception.Message);
@@ -272,6 +285,11 @@ namespace IdentityService
             return string.Equals(trimmedValue, BootstrapAdminAlias, StringComparison.OrdinalIgnoreCase)
                 ? BootstrapAdminEmail
                 : trimmedValue.ToLowerInvariant();
+        }
+
+        private static bool IsPersistenceException(Exception exception)
+        {
+            return PersistenceExceptionClassifier.IsPersistenceException(exception);
         }
 
         private static OperationResultDto ResultSuccess(string message)

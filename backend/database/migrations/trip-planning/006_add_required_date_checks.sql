@@ -1,3 +1,6 @@
+-- LEGACY SQL ALTERNATIVE
+-- Primarni V7 tok su EF Core migracije u backend/TravelPlanner.Persistence/Migrations.
+
 IF OBJECT_ID(N'dbo.TripPlans', N'U') IS NOT NULL
     AND OBJECT_ID(N'dbo.CK_TripPlans_DatesRequired', N'C') IS NULL
 BEGIN

@@ -2,7 +2,7 @@ using System.Fabric;
 using BudgetService.Configuration;
 using BudgetService.Data;
 using BudgetService.Models;
-using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
 using Microsoft.ServiceFabric.Services.Remoting.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
@@ -10,23 +10,36 @@ using TravelPlanner.Contracts.Budget;
 using TravelPlanner.Contracts.Common;
 using TravelPlanner.Contracts.Enums;
 using TravelPlanner.Contracts.Interfaces;
+using TravelPlanner.Persistence;
 
 namespace BudgetService
 {
     internal sealed class BudgetService : StatefulService, IBudgetService
     {
+        private readonly ServiceProvider serviceProvider;
         private readonly IBudgetRepository repository;
 
         public BudgetService(StatefulServiceContext context)
             : base(context)
         {
             var settings = FabricConfigurationProvider.Load(context);
-            repository = new BudgetRepository(settings.DefaultConnection);
+            serviceProvider = ConfigureServices(settings);
+            repository = serviceProvider.GetRequiredService<IBudgetRepository>();
         }
 
         protected override IEnumerable<ServiceReplicaListener> CreateServiceReplicaListeners()
         {
             return this.CreateServiceRemotingReplicaListeners();
+        }
+
+        private static ServiceProvider ConfigureServices(BudgetServiceSettings settings)
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton(settings);
+            services.AddTravelPlannerPersistence(settings.DefaultConnection);
+            services.AddSingleton<IBudgetRepository, BudgetRepository>();
+
+            return services.BuildServiceProvider();
         }
 
         public async Task<List<ExpenseDto>> GetExpensesAsync(Guid tripPlanId, Guid userId)
@@ -41,7 +54,7 @@ namespace BudgetService
                 var expenses = await repository.GetExpensesByTripPlanIdAsync(tripPlanId);
                 return expenses.Select(ToDto).ToList();
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Expense list failed", exception);
                 return new List<ExpenseDto>();
@@ -60,7 +73,7 @@ namespace BudgetService
                 var expense = await repository.GetExpenseByIdAsync(expenseId);
                 return expense is null || expense.TripPlanId != tripPlanId ? null : ToDto(expense);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Expense lookup failed", exception);
                 return null;
@@ -98,7 +111,7 @@ namespace BudgetService
                 var created = await repository.CreateExpenseAsync(expense);
                 return ToDto(created);
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Expense create failed", exception);
                 return null;
@@ -139,7 +152,7 @@ namespace BudgetService
                 var updated = await repository.UpdateExpenseAsync(expense);
                 return updated ? ToDto(expense) : null;
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Expense update failed", exception);
                 return null;
@@ -164,7 +177,7 @@ namespace BudgetService
                 var deleted = await repository.DeleteExpenseAsync(expenseId);
                 return deleted ? Success("Expense deleted.") : Failure("Expense was not deleted.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Expense delete failed", exception);
                 return Failure(exception.Message);
@@ -190,7 +203,7 @@ namespace BudgetService
                     RemainingBudget = plannedBudget.Value - totalExpenses
                 };
             }
-            catch (Exception exception) when (exception is InvalidOperationException or SqlException)
+            catch (Exception exception) when (IsPersistenceException(exception))
             {
                 LogDatabaseError("Budget summary failed", exception);
                 return null;
@@ -260,6 +273,11 @@ namespace BudgetService
         private static string? NormalizeOptionalText(string? value)
         {
             return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        private static bool IsPersistenceException(Exception exception)
+        {
+            return PersistenceExceptionClassifier.IsPersistenceException(exception);
         }
 
         private static OperationResultDto Success(string message)
