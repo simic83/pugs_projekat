@@ -1,18 +1,41 @@
-bin/
-obj/
-pkg/
+# Visual Studio / Rider / VS Code
 .vs/
 .idea/
 .vscode/
-node_modules/
-dist/
-.env
-!frontend/.env
-*.csproj.lscache
 *.user
 *.suo
-*.log
+*.csproj.lscache
+
+# .NET build output
+bin/
+obj/
+**/bin/
+**/obj/
+
+# Service Fabric package output
+pkg/
+**/pkg/
+backend/TravelPlanner/pkg/
+
+# NuGet package cache restored locally
+packages/
+**/packages/
 *.nupkg
 *.snupkg
+
+# Frontend dependencies and build output
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+
+# Local config and logs
+.env
+!frontend/.env
+*.log
+
+# Test output
 TestResults/
 coverage/
+**/TestResults/
+**/coverage/
