@@ -12,381 +12,137 @@
   <img src="https://img.shields.io/badge/.NET-8-512BD4?style=for-the-badge&logo=dotnet&logoColor=FFFFFF" alt=".NET 8" />
   <img src="https://img.shields.io/badge/Service%20Fabric-Microservices-0EA5E9?style=for-the-badge" alt="Microsoft Service Fabric" />
   <img src="https://img.shields.io/badge/SQL%20Server-TravelPlannerDb-CC2927?style=for-the-badge&logo=microsoftsqlserver&logoColor=FFFFFF" alt="SQL Server" />
-  <img src="https://img.shields.io/badge/JWT-Secure%20Auth-111827?style=for-the-badge&logo=jsonwebtokens&logoColor=FFFFFF" alt="JWT authentication" />
-</p>
-
-<p align="center">
-  <a href="#pregled">Pregled</a> |
-  <a href="#funkcionalnosti">Funkcionalnosti</a> |
-  <a href="#arhitektura-sistema">Arhitektura</a> |
-  <a href="#pokretanje-projekta">Pokretanje</a> |
-  <a href="#ef-core-migracije">EF Core migracije</a> |
-  <a href="#status-specifikacije">Status specifikacije</a>
 </p>
 
 ---
 
-## Pregled
+# Travel Planner
 
-**Travel Planner** je web aplikacija za planiranje putovanja razvijena za predmet **Primena veb programiranja u infrastrukturnim sistemima**.
+Travel Planner je web aplikacija za planiranje putovanja. Projekat je radjen za predmet **Primena veb programiranja u infrastrukturnim sistemima**.
 
-Aplikacija pomaze korisniku da na jednom mjestu organizuje:
-
-- osnovne podatke o putovanju,
-- destinacije i datume boravka,
-- dnevne aktivnosti kroz pregled i calendar view,
-- troskove, kategorije i preostali budzet,
-- checklist / packing listu,
-- biljeske i podsjetnike,
-- dijeljenje plana putem linka i QR koda.
-
-Centralni entitet sistema je **plan putovanja**. Oko njega su organizovani destinacije, aktivnosti, troskovi, budzet, biljeske, podsjetnici, checklist stavke i share tokeni.
-
----
+Ideja aplikacije je da korisnik na jednom mjestu moze da napravi plan putovanja i uz njega vodi destinacije, aktivnosti, troskove, checklistu, biljeske i podsjetnike. Plan se moze podijeliti preko linka ili QR koda.
 
 ## Funkcionalnosti
 
-| Modul | Sta sistem podrzava |
-| --- | --- |
-| **Autentifikacija** | Registracija vodi nazad na login formu; login izdaje JWT token. Lozinke su hashovane, a podrzane su role `User` / `Admin`. |
-| **Planovi putovanja** | Kreiranje, pregled, izmjena i brisanje planova sa nazivom, opisom, datumima, budzetom i napomenama. |
-| **Destinacije** | Dodavanje vise destinacija po putovanju, sa lokacijom, datumima dolaska/odlaska i opisom. |
-| **Aktivnosti** | Organizacija po danima, vrijeme, lokacija, status, opis i procijenjeni trosak. |
-| **Kalendar** | Prikaz aktivnosti kroz FullCalendar pregled radi lakse navigacije po danima. |
-| **Troskovi i budzet** | Kategorije troskova, automatski zbir troskova i prikaz preostalog budzeta. |
-| **Checklist** | Packing lista i obaveze prije puta, uz oznacavanje zavrsenih stavki. |
-| **Biljeske i podsjetnici** | Dodatne informacije i podsjetnici vezani za konkretan plan putovanja. |
-| **Dijeljenje** | Share link i QR kod sa nivoima pristupa `VIEW` i `EDIT`. |
-| **Admin panel** | Pregled korisnika, upravljanje ulogama i administracija sadrzaja sistema. |
-| **Izvjestaj** | Print/PDF-friendly pregled plana putovanja kroz browser print funkcionalnost. |
+- registracija i logovanje korisnika
+- kreiranje, izmjena i brisanje planova putovanja
+- dodavanje destinacija za jedno putovanje
+- organizacija aktivnosti po danima
+- pregled aktivnosti kroz kalendar
+- evidencija troskova i pracenje budzeta
+- checklist stavke za putovanje
+- biljeske i podsjetnici
+- dijeljenje plana preko linka i QR koda
+- admin pregled korisnika i sadrzaja
 
----
+Use case dijagram je dodat u fajlu:
 
-## Tehnoloski Stack
+![Use case dijagram](usecase.png)
 
-| Sloj | Tehnologije |
-| --- | --- |
-| **Frontend** | React 19, Vite 7, React Router, Context API, FullCalendar, qrcode.react, lucide-react |
-| **Backend** | .NET 8, ASP.NET Core Web API, Microsoft Service Fabric, Service Fabric Remoting |
-| **Baza** | Microsoft SQL Server, EF Core migracije i centralizovani `TravelPlanner.Persistence` sloj |
-| **Sigurnost** | JWT autentifikacija, role-based access, PBKDF2 password hashing |
-| **Integracija** | REST API preko `ApiGatewayService`, interna komunikacija preko Service Fabric Remoting-a |
+## Arhitektura
 
----
+Aplikacija je podijeljena na frontend, backend servise i bazu podataka.
 
-## Arhitektura Sistema
+- **Frontend** je React aplikacija. Sluzi za korisnicki interfejs i salje zahtjeve backend-u.
+- **Backend** je napravljen u .NET-u kroz Service Fabric servise. Tu se nalazi poslovna logika, validacija i rad sa podacima.
+- **SQL Server** cuva podatke aplikacije.
 
-```mermaid
-flowchart LR
-    Browser["React + Vite frontend<br/>Context API + API servisi"]
-    Gateway["ApiGatewayService<br/>ASP.NET Core REST API<br/>Stateless"]
-    Identity["IdentityService<br/>korisnici, login, JWT, role<br/>Stateless"]
-    Trip["TripPlanningService<br/>planovi, destinacije, aktivnosti,<br/>checklist, biljeske, podsjetnici<br/>Stateful"]
-    Budget["BudgetService<br/>troskovi i budzet summary<br/>Stateful"]
-    Sharing["SharingService<br/>share tokeni, VIEW/EDIT pristup<br/>Stateful"]
-    Db[("Microsoft SQL Server<br/>TravelPlannerDb")]
-
-    Browser -->|"REST + Bearer JWT"| Gateway
-    Gateway -->|"Service Fabric Remoting"| Identity
-    Gateway -->|"Service Fabric Remoting"| Trip
-    Gateway -->|"Service Fabric Remoting"| Budget
-    Gateway -->|"Service Fabric Remoting"| Sharing
-    Identity --> Db
-    Trip --> Db
-    Budget --> Db
-    Sharing --> Db
-
-    classDef frontend fill:#0EA5E9,stroke:#0369A1,color:#FFFFFF;
-    classDef gateway fill:#111827,stroke:#374151,color:#FFFFFF;
-    classDef stateless fill:#8B5CF6,stroke:#6D28D9,color:#FFFFFF;
-    classDef stateful fill:#22C55E,stroke:#15803D,color:#052E16;
-    classDef database fill:#F59E0B,stroke:#B45309,color:#111827;
-
-    class Browser frontend;
-    class Gateway gateway;
-    class Identity stateless;
-    class Trip,Budget,Sharing stateful;
-    class Db database;
-```
-
-### Mikroservisi
-
-| Servis | Tip | Odgovornost |
-| --- | --- | --- |
-| `ApiGatewayService` | Stateless | Jedini HTTP ulaz za frontend, REST kontroleri, CORS, JWT validacija i pozivanje internih servisa. |
-| `IdentityService` | Stateless | Registracija, login, hashovanje lozinki, JWT izdavanje, korisnici i role. |
-| `TripPlanningService` | Stateful | Planovi putovanja, destinacije, aktivnosti, checklist, biljeske i podsjetnici. |
-| `BudgetService` | Stateful | Evidencija troskova i automatski obracun ukupnog/preostalog budzeta. |
-| `SharingService` | Stateful | Kreiranje i validacija share tokena, QR/link dijeljenje, `VIEW` i `EDIT` pristup. |
-
----
-
-## Struktura Projekta
+Frontend ne pristupa bazi direktno. Komunikacija ide ovako:
 
 ```text
-pugs_projekat/
-|-- backend/
-|   |-- ApiGatewayService/       # REST API za frontend
-|   |-- IdentityService/         # autentifikacija, korisnici, role
-|   |-- TripPlanningService/     # planovi, destinacije, aktivnosti, checklist, notes, reminders
-|   |-- BudgetService/           # troskovi i budzet
-|   |-- SharingService/          # share tokeni i javni/shared pristup
-|   |-- Contracts/               # DTO modeli i Service Fabric Remoting interfejsi
-|   |-- TravelPlanner.Persistence/ # EF Core DbContext, entity modeli i migracije
-|   |-- TravelPlanner/           # Service Fabric application project
-|   `-- TravelPlanner.sln
-|
-|-- frontend/
-|   |-- src/
-|   |   |-- api/                 # HTTP servisi prema backend-u
-|   |   |-- components/          # reusable React komponente
-|   |   |-- context/             # AuthContext i AppContext
-|   |   |-- models/              # frontend modeli i konstante
-|   |   |-- pages/               # rute/stranice aplikacije
-|   |   |-- routes/              # React Router konfiguracija
-|   |   |-- styles/              # globalni stilovi
-|   |   `-- utils/               # validacija i token storage
-|   |-- .env                     # VITE_API_BASE_URL
-|   |-- package.json
-|   `-- index.html
-|
-`-- README.md
+React frontend -> ApiGatewayService -> interni servisi -> SQL Server
 ```
 
----
+Backend servisi:
 
-## Frontend Organizacija
+- `ApiGatewayService` - prima HTTP zahtjeve sa frontenda
+- `IdentityService` - registracija, login, korisnici i role
+- `TripPlanningService` - planovi, destinacije, aktivnosti, checklist, biljeske i podsjetnici
+- `BudgetService` - troskovi i budzet
+- `SharingService` - dijeljenje plana preko tokena/linka
 
-Frontend je organizovan kao moderna React aplikacija:
+## Baza podataka
 
-- stranice su u `frontend/src/pages`,
-- reusable UI cjeline su u `frontend/src/components`,
-- globalno stanje i tok autentifikacije su u `frontend/src/context`,
-- HTTP pozivi su izdvojeni u `frontend/src/api`,
-- frontend modeli i konstante su u `frontend/src/models`,
-- URL backend-a se cita iz `.env` fajla kroz `VITE_API_BASE_URL`.
+Za bazu se koristi SQL Server. Entity Framework Core je koristen za `DbContext` i migracije.
 
-HTTP pozivi se ne rade direktno iz komponenti. Komponente koriste servisne funkcije i context sloj, sto olaksava testiranje, odrzavanje i zamjenu backend URL-a.
-
-### Frontend `.env`
-
-```env
-VITE_API_BASE_URL=http://localhost:8080
-```
-
-Ako `ApiGatewayService` dobije drugi HTTP endpoint u lokalnom Service Fabric cluster-u, ovu vrijednost treba uskladiti sa stvarnim URL-om gateway servisa.
-
----
-
-## Backend Organizacija
-
-Backend je implementiran kroz Microsoft Service Fabric aplikaciju sa jasno odvojenim logickim servisima.
-
-Vanjski HTTP zahtjevi idu kroz:
+Persistence sloj je izdvojen u:
 
 ```text
-frontend -> ApiGatewayService -> Service Fabric Remoting -> interni servisi -> SQL Server
+backend/TravelPlanner.Persistence
 ```
 
-DTO modeli su smjesteni u `backend/Contracts`, dok su EF Core `DbContext`, entity klase i migracije centralizovani u `backend/TravelPlanner.Persistence`. Servisi koriste taj persistence sloj kroz repository klase, tako da ugovori API-ja i perzistentni modeli ostaju odvojeni.
-
----
-
-## REST Resursi
-
-Glavni REST endpoint-i prate konvenciju imenovanja resursa:
-
-| Resurs | Primjer |
-| --- | --- |
-| Sesije | `POST /api/sessions` |
-| Korisnici | `POST /api/users`, `GET /api/users/me` |
-| Planovi putovanja | `GET /api/trip-plans`, `POST /api/trip-plans` |
-| Pojedinacni plan | `GET /api/trip-plans/{tripPlanId}` |
-| Destinacije | `/api/trip-plans/{tripPlanId}/destinations` |
-| Aktivnosti | `/api/trip-plans/{tripPlanId}/activities` |
-| Troskovi | `/api/trip-plans/{tripPlanId}/expenses` |
-| Budzet | `GET /api/trip-plans/{tripPlanId}/budget` |
-| Checklist | `/api/trip-plans/{tripPlanId}/checklist-items` |
-| Biljeske | `/api/trip-plans/{tripPlanId}/notes` |
-| Podsjetnici | `/api/trip-plans/{tripPlanId}/reminders` |
-| Share tokeni | `/api/trip-plans/{tripPlanId}/shares` |
-| Shared plan | `/api/shares/{token}/trip-plan` |
-| Admin | `/api/admin/trip-plans` |
-
----
-
-## Sigurnost I Validacija
-
-Sistem vodi racuna o osnovnim sigurnosnim pravilima:
-
-- lozinke se cuvaju kao hash, uz PBKDF2 i SHA-256,
-- JWT tokeni imaju potpis, issuer, audience i istek,
-- `ApiGatewayService` validira token prije pristupa zasticenim rutama,
-- korisnik moze upravljati samo svojim planovima,
-- admin ima dodatna ovlascenja za korisnike i sadrzaj,
-- share token se validira na svakom zahtjevu,
-- `VIEW` token omogucava samo pregled,
-- `EDIT` token dozvoljava izmjene nad podrzanim entitetima,
-- datumi i budzet imaju backend i SQL validacije,
-- brisanje plana uklanja povezane entitete preko cascade veza.
-
----
-
-## EF Core Migracije
-
-EF Core migracije se nalaze u `backend/TravelPlanner.Persistence/Migrations`, a `DbContext` je u `backend/TravelPlanner.Persistence/TravelPlannerDbContext.cs`.
-
-Projekat ima lokalni `dotnet-ef` alat u `.config/dotnet-tools.json`. Prije prve upotrebe:
-
-```powershell
-dotnet tool restore
-```
-
-Primjena migracija na lokalnu bazu:
-
-```powershell
-dotnet dotnet-ef database update `
-  --project backend/TravelPlanner.Persistence `
-  --startup-project backend/TravelPlanner.Persistence `
-  --context TravelPlannerDbContext
-```
-
-Kreiranje nove migracije nakon promjene entity klasa ili `TravelPlannerDbContext` konfiguracije:
-
-```powershell
-dotnet dotnet-ef migrations add ImeMigracije `
-  --project backend/TravelPlanner.Persistence `
-  --startup-project backend/TravelPlanner.Persistence `
-  --context TravelPlannerDbContext `
-  --output-dir Migrations
-```
-
-Generisanje SQL skripte iz EF migracija:
-
-```powershell
-dotnet dotnet-ef migrations script --idempotent `
-  --project backend/TravelPlanner.Persistence `
-  --startup-project backend/TravelPlanner.Persistence `
-  --context TravelPlannerDbContext
-```
-
-`TravelPlannerDbContextFactory` koristi connection string iz `TRAVELPLANNER_CONNECTION_STRING` environment varijable. Ako varijabla nije postavljena, koristi lokalni `SQLEXPRESS` connection string:
-
-```text
-Server=localhost\SQLEXPRESS;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;
-```
-
-EF migracija kreira bazu `TravelPlannerDb`, tabele, `__EFMigrationsHistory`, role i bootstrap admin nalog ako u sistemu ne postoji nijedan admin.
-
-Lokalni connection string koji koriste Service Fabric parametri:
-
-```text
-Server=localhost;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;
-```
-
-Ako je lokalni SQL Server named instance `SQLEXPRESS`, koristiti:
-
-```text
-Server=localhost\SQLEXPRESS;Database=TravelPlannerDb;Trusted_Connection=True;TrustServerCertificate=True;
-```
-
-Ako `database update` prijavi da tabela kao `Roles` vec postoji, lokalna baza je vjerovatno ranije inicijalizovana van EF Core migracija. Za cist EF start koristiti novu/praznu bazu ili svjesno obrisati staru lokalnu bazu prije migracija.
-
-Ako lokalni Service Fabric koristi Windows authentication, servisi se obicno konektuju kao `NT AUTHORITY\NETWORK SERVICE`. Tom SQL Server nalogu treba dodijeliti pristup nad bazom `TravelPlannerDb`, inace backend moze vratiti gresku pri citanju ili upisu podataka.
-
----
-
-## Pokretanje Projekta
-
-### Preduslovi
-
-- Windows razvojno okruzenje
-- Visual Studio sa Service Fabric alatima
-- Microsoft Service Fabric SDK i lokalni cluster
-- .NET 8 SDK
-- Microsoft SQL Server i SQL Server Management Studio
-- Node.js i npm
-
-### 1. Baza
-
-Primarni tok je EF Core. Iz root foldera repozitorijuma:
-
-```powershell
-dotnet tool restore
-dotnet dotnet-ef database update `
-  --project backend/TravelPlanner.Persistence `
-  --startup-project backend/TravelPlanner.Persistence `
-  --context TravelPlannerDbContext
-```
-
-Nakon toga baza `TravelPlannerDb` treba da sadrzi sve potrebne tabele, constraint-e, `__EFMigrationsHistory`, pocetne role i bootstrap admin nalog.
-
-Ako lokalni Service Fabric koristi Windows authentication, servisi se obicno konektuju kao `NT AUTHORITY\NETWORK SERVICE`. Tom nalogu treba dodijeliti pristup nad bazom `TravelPlannerDb`, inace registracija, login ili rad sa planovima mogu zavrsiti SQL permission greskom.
-
-### 2. Backend
-
-Otvoriti solution:
-
-```text
-backend/TravelPlanner.sln
-```
-
-U Service Fabric parametrima podesiti:
+U tom projektu se nalaze entity klase, `TravelPlannerDbContext` i migracije. Connection string se podesava u Service Fabric parametrima, npr. u:
 
 ```text
 backend/TravelPlanner/ApplicationParameters/Local.1Node.xml
 backend/TravelPlanner/ApplicationParameters/Local.5Node.xml
 ```
 
-Najbitniji parametri:
+## Struktura projekta
 
 ```text
-Identity_DefaultConnection
-TripPlanning_DefaultConnection
-Budget_DefaultConnection
-Sharing_DefaultConnection
-Identity_JwtSecret
-ApiGateway_JwtSecret
-Identity_JwtIssuer
-ApiGateway_JwtIssuer
-Identity_JwtAudience
-ApiGateway_JwtAudience
-ApiGateway_CorsAllowedOrigins
+pugs_projekat/
+|-- backend/
+|   |-- ApiGatewayService/
+|   |-- IdentityService/
+|   |-- TripPlanningService/
+|   |-- BudgetService/
+|   |-- SharingService/
+|   |-- Contracts/
+|   |-- TravelPlanner.Persistence/
+|   |-- TravelPlanner/
+|   `-- TravelPlanner.sln
+|
+|-- frontend/
+|   |-- src/
+|   |-- package.json
+|   `-- .env
+|
+|-- usecase.png
+`-- README.md
 ```
 
-JWT vrijednosti za `IdentityService` i `ApiGatewayService` moraju biti iste, jer identity servis izdaje token, a gateway servis ga validira.
+## Pokretanje projekta
 
-`JwtSecret` mora imati najmanje 32 bajta/karaktera.
+Potrebno je imati Visual Studio sa Service Fabric alatima, .NET 8 SDK, SQL Server, Node.js i npm.
 
-Zatim pokrenuti/deploy-ovati Service Fabric aplikaciju `TravelPlanner` iz Visual Studio okruzenja.
-
-### 3. Frontend
+Prvo pokrenuti SQL Server i primijeniti migracije:
 
 ```powershell
-cd frontend
+dotnet tool restore
+dotnet dotnet-ef database update --project backend/TravelPlanner.Persistence --startup-project backend/TravelPlanner.Persistence --context TravelPlannerDbContext
+```
+
+Zatim otvoriti backend solution:
+
+```text
+backend/TravelPlanner.sln
+```
+
+U `Local.1Node.xml` ili `Local.5Node.xml` provjeriti connection string i JWT vrijednosti, pa pokrenuti Service Fabric aplikaciju iz Visual Studio okruzenja.
+
+Frontend se pokrece iz foldera `frontend`:
+
+```powershell
 npm install
 npm run dev
 ```
 
-Vite aplikacija se podrazumijevano pokrece na:
+Frontend se lokalno otvara na:
 
 ```text
 http://localhost:5173
 ```
 
-Za provjeru produkcionog build-a:
+Backend adresa za frontend je u fajlu:
 
-```powershell
-cd frontend
-npm run build
-npm run preview
+```text
+frontend/.env
 ```
 
----
+## Test nalog
 
-## Test Nalog
-
-Migracije seed-uju role `User` i `Admin`. Ako u bazi ne postoji nijedan admin, kreira se bootstrap admin:
+Migracije dodaju osnovne role. Ako u bazi ne postoji admin, kreira se pocetni admin nalog:
 
 ```text
 login: admin
@@ -394,97 +150,7 @@ email: admin@travelplanner.local
 lozinka: admin123
 ```
 
-Za stvarno okruzenje potrebno je promijeniti lozinku i zamijeniti sve `CHANGE_ME_*` konfiguracione vrijednosti.
-
----
-
-## Dijeljenje Plana
-
-Dijeljenje plana podrzava dva nivoa pristupa:
-
-| Pristup | Mogucnosti |
-| --- | --- |
-| `VIEW` | Pregled plana, destinacija, aktivnosti, troskova, checklist stavki, biljeski i podsjetnika. |
-| `EDIT` | Izmjena podrzanih podataka nad dijeljenim planom. |
-
-Frontend generise QR kod za share link preko `qrcode.react`, dok backend validira token i nivo pristupa pri svakom zahtjevu.
-
----
-
-## Status Specifikacije
-
-| Zahtjev | Status |
-| --- | --- |
-| React frontend | Implementirano |
-| Upravljanje stanjem aplikacije | Implementirano kroz Context API |
-| HTTP pozivi izdvojeni u servise | Implementirano u `frontend/src/api` |
-| URL backend-a u `.env` fajlu | Implementirano kroz `VITE_API_BASE_URL` |
-| Frontend modeli | Implementirano u `frontend/src/models` |
-| Service Fabric mikroservisi | Implementirano |
-| Stateless i stateful servisi | Implementirano |
-| SQL Server perzistencija | Implementirano |
-| EF Core migracije | Implementirano |
-| Centralizovani `TravelPlanner.Persistence` sloj | Implementirano |
-| DTO i DB modeli odvojeni | Implementirano |
-| REST imenovanje resursa | Implementirano |
-| Hashovanje lozinki | Implementirano |
-| Validacija potpisa i isteka tokena | Implementirano |
-| Validacija datuma i budzeta | Implementirano |
-| Cascade brisanje povezanih entiteta | Implementirano |
-| QR/share pristup `VIEW` i `EDIT` | Implementirano |
-| README uputstvo za pokretanje | Implementirano |
-| Use Case dijagram | Dodat kao `usecase.png` |
-
----
-
-## Korisni Fajlovi
-
-| Fajl | Namjena |
-| --- | --- |
-| `backend/TravelPlanner.sln` | Backend solution za Visual Studio |
-| `backend/TravelPlanner/ApplicationPackageRoot/ApplicationManifest.xml` | Glavni Service Fabric manifest |
-| `backend/TravelPlanner/StartupServices.xml` | Definicija stateless/stateful servisa |
-| `backend/TravelPlanner.Persistence/TravelPlanner.Persistence.csproj` | Centralni EF Core persistence projekat |
-| `backend/TravelPlanner.Persistence/TravelPlannerDbContext.cs` | EF Core DbContext za migracije |
-| `backend/TravelPlanner.Persistence/Migrations` | EF Core migracije |
-| `frontend/package.json` | Frontend skripte i dependency lista |
-| `frontend/.env` | Backend URL za frontend |
-
----
-
-## Kratka Komanda Za Frontend
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
-## Kratak Redosled Za Cist Start
-
-1. Pokrenuti SQL Server.
-2. Pokrenuti EF Core migracije komandom `dotnet dotnet-ef database update --project backend/TravelPlanner.Persistence --startup-project backend/TravelPlanner.Persistence --context TravelPlannerDbContext`.
-3. Provjeriti Service Fabric parametre u `Local.1Node.xml` ili `Local.5Node.xml`.
-4. Pokrenuti `backend/TravelPlanner.sln` kroz Visual Studio.
-5. Provjeriti `frontend/.env` i `VITE_API_BASE_URL`.
-6. Pokrenuti frontend sa `npm run dev`.
-7. Otvoriti `http://localhost:5173`.
-
-## Zavrsna Provjera
-
-```powershell
-dotnet build backend/TravelPlanner.sln
-dotnet dotnet-ef migrations list `
-  --project backend/TravelPlanner.Persistence `
-  --startup-project backend/TravelPlanner.Persistence `
-  --context TravelPlannerDbContext
-dotnet dotnet-ef database update `
-  --project backend/TravelPlanner.Persistence `
-  --startup-project backend/TravelPlanner.Persistence `
-  --context TravelPlannerDbContext
-```
-
-Rucno kroz aplikaciju provjeriti: registracija, login, kreiranje plana, dodavanje aktivnosti, dodavanje troska i kreiranje/otvaranje share linka.
+Za stvarnu upotrebu ove vrijednosti treba promijeniti.
 
 <p align="center">
   <img src="https://capsule-render.vercel.app/api?type=waving&color=0:F59E0B,50:22C55E,100:0EA5E9&height=110&section=footer" alt="Travel Planner footer wave" />
